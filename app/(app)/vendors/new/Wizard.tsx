@@ -6,15 +6,26 @@ import FieldGrid from '../FieldGrid';
 import { SECTIONS, type Field } from '@/lib/schema';
 import { REGIONS, STATES, RX, panFromGstin, stateFromGstin } from '@/lib/constants';
 import { createVendor, lookupCompany, type LookupResult } from './actions';
+import { uploadDocument } from '../[id]/documentActions';
 
 export type Cat = { id: string; industry: string; code: string; label: string;
                     subs: { id: string; label: string }[] };
+
+export type DocRule = {
+  industry: string; level: string; code: string; label: string;
+  applies_to: string | null; expiry_tracked: boolean;
+  uploaded_by_party: string; sort: number;
+};
+
+/** A file chosen during the wizard. Held in the browser until the vendor
+ *  exists, because a document needs a site to belong to. */
+type Pending = { file: File; number: string; validUntil: string };
 
 type Vals = Record<string, unknown>;
 const sec = (id: string) => SECTIONS.find(s => s.id === id)!;
 const blank = { name: '', designation: '', mobile: '', email: '' };
 
-export default function Wizard({ cats }: { cats: Cat[] }) {
+export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocRule[] }) {
   const router = useRouter();
 
   const [step, setStep] = useState(0);
@@ -31,6 +42,8 @@ export default function Wizard({ cats }: { cats: Cat[] }) {
   const [linkTo, setLinkTo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [files, setFiles] = useState<Record<string, Pending>>({});
+  const [uploading, setUploading] = useState('');
 
   const gstin = String(site.gstin ?? '');
   const pan = panFromGstin(gstin);
@@ -54,6 +67,19 @@ export default function Wizard({ cats }: { cats: Cat[] }) {
 
   const industryCats = useMemo(() => cats.filter(c => c.industry === industry), [cats, industry]);
 
+  // Before an industry is chosen, show the ones common to all three — the GST
+  // certificate, PAN and cancelled cheque are needed whatever the vendor does.
+  const docs = useMemo(() => {
+    if (industry) return docRules.filter(d => d.industry === industry);
+    const counts = new Map<string, number>();
+    docRules.forEach(d => counts.set(d.code, (counts.get(d.code) ?? 0) + 1));
+    const seen = new Set<string>();
+    return docRules.filter(d => {
+      if (counts.get(d.code) !== 3 || seen.has(d.code)) return false;
+      seen.add(d.code); return true;
+    });
+  }, [docRules, industry]);
+
   const steps = useMemo(() => {
     const list = [
       { id: 'identity', label: 'Identity and registration' },
@@ -70,6 +96,7 @@ export default function Wizard({ cats }: { cats: Cat[] }) {
       list.push({ id: 'cto', label: 'Consent to Operate' });
       list.push({ id: 'epr', label: 'EPR registration' });
     }
+    list.push({ id: 'documents', label: 'Documents' });
     list.push({ id: 'review', label: 'Review and create' });
     return list;
   }, [industry]);
@@ -142,8 +169,32 @@ export default function Wizard({ cats }: { cats: Cat[] }) {
       contacts: contacts.map((c, i) => ({ ...c, rank: i + 1 })),
       geography: geo, categories: pickedCats, subcategories: pickedSubs,
     });
+    if (res.error) { setBusy(false); setError(res.error); return; }
+
+    // The vendor exists now, so the held files finally have somewhere to go.
+    const entries = Object.entries(files);
+    const failed: string[] = [];
+    for (let i = 0; i < entries.length; i++) {
+      const [code, f] = entries[i];
+      setUploading(`Uploading ${f.file.name} (${i + 1} of ${entries.length})…`);
+      const fd = new FormData();
+      fd.set('site_id', res.siteId!);
+      fd.set('doc_type', code);
+      fd.set('file', f.file);
+      fd.set('doc_number', f.number);
+      fd.set('valid_until', f.validUntil);
+      const up = await uploadDocument({}, fd);
+      if (up.error) failed.push(`${code}: ${up.error}`);
+    }
+    setUploading('');
     setBusy(false);
-    if (res.error) { setError(res.error); return; }
+
+    if (failed.length) {
+      setError('The vendor was created, but some documents did not upload: '
+        + failed.join(' · ') + '. Add them from the record.');
+      setTimeout(() => router.push(`/vendors/${res.siteId}`), 4000);
+      return;
+    }
     router.push(`/vendors/${res.siteId}`);
   };
 
@@ -485,6 +536,95 @@ export default function Wizard({ cats }: { cats: Cat[] }) {
             </>
           )}
 
+          {current.id === 'documents' && (
+            <>
+              <p className="text-[13.5px] mb-4" style={{ color: 'var(--faint)' }}>
+                Attach what you have. Anything missing can be added on the record
+                afterwards — none of this blocks creating the vendor. PDF, JPG or PNG,
+                up to 10 MB each.
+              </p>
+
+              {docs.map(d => {
+                const chosen = files[d.code];
+                return (
+                  <div key={d.code} className="card p-4 mb-3"
+                       style={chosen ? { borderColor: 'var(--p400)', background: 'var(--p50)' } : undefined}>
+                    <div className="flex justify-between items-start gap-3 mb-3 flex-wrap">
+                      <div>
+                        <div className="text-[13.5px] font-bold" style={{ color: 'var(--head)' }}>
+                          {d.label}
+                        </div>
+                        <div className="text-[12px]" style={{ color: 'var(--faint)' }}>
+                          {d.applies_to}
+                          {d.expiry_tracked && ' · expiry tracked'}
+                          {d.uploaded_by_party === 'fitsol' && ' · issued by Fitsol, usually added later'}
+                        </div>
+                      </div>
+                      <span className={`chip ${d.level === 'required' ? 'c-r'
+                        : d.level === 'conditional' ? 'c-a' : 'c-n'}`}>
+                        {d.level.toUpperCase()}
+                      </span>
+                    </div>
+
+                    <div className="grid md:grid-cols-3 gap-4">
+                      <div className={d.expiry_tracked ? '' : 'md:col-span-2'}>
+                        <label className="lab" htmlFor={`wf_${d.code}`}>File</label>
+                        <input id={`wf_${d.code}`} type="file"
+                               accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*"
+                               onChange={e => {
+                                 const f = e.target.files?.[0];
+                                 setFiles(p => {
+                                   const n = { ...p };
+                                   if (f) n[d.code] = { file: f,
+                                     number: p[d.code]?.number ?? '',
+                                     validUntil: p[d.code]?.validUntil ?? '' };
+                                   else delete n[d.code];
+                                   return n;
+                                 });
+                               }} />
+                      </div>
+                      <div>
+                        <label className="lab" htmlFor={`wn_${d.code}`}>Document number</label>
+                        <input id={`wn_${d.code}`} maxLength={60} placeholder="As printed on it"
+                               value={chosen?.number ?? ''}
+                               onChange={e => setFiles(p => chosen
+                                 ? { ...p, [d.code]: { ...chosen, number: e.target.value } } : p)} />
+                      </div>
+                      {d.expiry_tracked && (
+                        <div>
+                          <label className="lab" htmlFor={`wv_${d.code}`}>Valid until</label>
+                          <input id={`wv_${d.code}`} type="date"
+                                 value={chosen?.validUntil ?? ''}
+                                 onChange={e => setFiles(p => chosen
+                                   ? { ...p, [d.code]: { ...chosen, validUntil: e.target.value } } : p)} />
+                        </div>
+                      )}
+                    </div>
+
+                    {chosen && (
+                      <div className="hint mt-2">
+                        {chosen.file.name} · {(chosen.file.size / 1024).toFixed(0)} KB, ready to upload
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {!docs.length && (
+                <div className="note a">
+                  No document rules are set up. Run <b>03_reference_data.sql</b> in Supabase.
+                </div>
+              )}
+
+              {!industry && (
+                <div className="note">
+                  Showing the documents every vendor needs. Choose an industry type in
+                  step 1 and any extra ones for it appear here too.
+                </div>
+              )}
+            </>
+          )}
+
           {current.id === 'review' && (
             <>
               <p className="text-[13.5px] mb-4" style={{ color: 'var(--faint)' }}>
@@ -503,6 +643,9 @@ export default function Wizard({ cats }: { cats: Cat[] }) {
                   ['Service categories', pickedCats.length
                     ? industryCats.filter(c => pickedCats.includes(c.id)).map(c => c.label).join(', ')
                     : '—'],
+                  ['Documents ready', Object.keys(files).length
+                    ? `${Object.keys(files).length} file${Object.keys(files).length === 1 ? '' : 's'}`
+                    : 'None yet'],
                 ].map(([k, v]) => (
                   <div key={k}>
                     <div className="text-[10.5px] font-bold uppercase tracking-[.07em]"
@@ -532,7 +675,7 @@ export default function Wizard({ cats }: { cats: Cat[] }) {
               )}
               {current.id === 'review' ? (
                 <button type="button" className="btn btn-p" onClick={submit} disabled={busy}>
-                  {busy ? 'Creating…' : 'Create vendor'}
+                  {uploading || (busy ? 'Creating…' : 'Create vendor')}
                 </button>
               ) : (
                 <button type="button" className="btn btn-p" onClick={next}>Continue</button>
