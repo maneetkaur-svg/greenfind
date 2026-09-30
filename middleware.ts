@@ -6,9 +6,6 @@ type CookieToSet = { name: string; value: string; options?: CookieOptions };
 /** Refreshes the session on every request and keeps signed-out users
  *  away from everything except /login. */
 export async function middleware(request: NextRequest) {
-  // Demo mode: no login, so there is no session to check or refresh.
-  if (process.env.DEMO_MODE === 'true') return NextResponse.next({ request });
-
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(

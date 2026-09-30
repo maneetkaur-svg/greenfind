@@ -1,5 +1,4 @@
 'use server';
-import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { createClient, getMe } from '@/lib/supabase/server';
 import { panFromGstin, RX } from '@/lib/constants';
@@ -8,13 +7,10 @@ export type LookupResult =
   | { found: false }
   | { found: true; id: string; company_code: string; legal_name: string; site_count: number };
 
-/** Characters 3–12 of the GSTIN are the PAN, so the system can tell on its
- *  own whether this company is already on record. Nobody has to remember
- *  to say "we've dealt with them before". */
+/** Characters 3–12 of a GSTIN are the PAN, so the system can tell on its own
+ *  whether this company is already on record. Nobody has to remember to say so. */
 export async function lookupCompany(gstin: string): Promise<LookupResult> {
-  const pan = panFromGstin(gstin);
-  if (!pan) return { found: false };
-
+  if (!panFromGstin(gstin)) return { found: false };
   const supabase = await createClient();
   const { data } = await supabase.rpc('company_for_gstin', { p_gstin: gstin.toUpperCase() });
   const hit = data?.[0];
@@ -24,86 +20,119 @@ export async function lookupCompany(gstin: string): Promise<LookupResult> {
     : { found: false };
 }
 
-export type CreateState = { error?: string };
+export type VendorPayload = {
+  linkCompanyId: string | null;
+  company: Record<string, unknown>;
+  site: Record<string, unknown>;
+  operations: Record<string, unknown>;
+  certificates: Record<string, unknown>;
+  contacts: { rank: number; name: string; designation: string;
+              mobile: string; email: string }[];
+  geography: string[];
+  categories: string[];
+  subcategories: string[];
+};
 
-export async function createVendor(
-  _prev: CreateState, formData: FormData
-): Promise<CreateState> {
+export type CreateResult = { error?: string; siteId?: string };
+
+/** Creates everything in one go: company if new, then the site and every child
+ *  table. If the site fails, a company created moments earlier is rolled back,
+ *  so a half-made vendor is never left behind. */
+export async function createVendor(p: VendorPayload): Promise<CreateResult> {
   const me = await getMe();
-  if (!me || me.role === 'user') return { error: 'You do not have permission to create a vendor.' };
+  if (!me) return { error: 'You are not signed in.' };
+  if (me.role === 'user') return { error: 'Your role is read-only.' };
 
-  const supabase = await createClient();
-  const get = (k: string) => String(formData.get(k) ?? '').trim();
-
-  const gstin = get('gstin').toUpperCase();
+  const gstin = String(p.site.gstin ?? '').toUpperCase();
   const pan = panFromGstin(gstin);
   if (!pan) return { error: 'That GSTIN is not valid. Fifteen characters, with the PAN inside it.' };
-  if (!RX.pincode.test(get('pincode'))) return { error: 'Pincode must be six digits and cannot start with zero.' };
-  if (!get('legal_name')) return { error: 'Legal name is required.' };
-  if (!get('industry')) return { error: 'Industry type is required.' };
+  if (!p.site.industry) return { error: 'Industry type is required.' };
+  if (!p.site.address_line1) return { error: 'Address is required.' };
+  if (!p.site.city) return { error: 'City is required.' };
+  if (!p.site.state) return { error: 'State is required.' };
+  if (!RX.pincode.test(String(p.site.pincode ?? '')))
+    return { error: 'Pincode must be six digits and cannot start with zero.' };
 
-  const linkTo = get('link_company_id');
-  let companyId = linkTo || null;
+  if (!p.linkCompanyId) {
+    if (!p.company.legal_name) return { error: 'Legal name is required.' };
+    if (p.company.is_msme === true && (!p.company.msme_category || !p.company.udyam_number))
+      return { error: 'An MSME needs both an enterprise category and a Udyam number.' };
+  }
 
-  // New company: mint a code and insert. Existing: nothing is copied,
-  // the new site simply points at it.
+  const named = p.contacts.filter(c => c.name.trim());
+  if (named.length < 2)
+    return { error: 'Two contacts are required — a primary and a secondary.' };
+  for (const c of named) {
+    if (c.mobile && !RX.mobile.test(c.mobile))
+      return { error: `${c.name}: mobile must be ten digits starting 6 to 9.` };
+    if (c.email && !RX.email.test(c.email))
+      return { error: `${c.name}: that email does not look right.` };
+  }
+
+  const supabase = await createClient();
+  let companyId = p.linkCompanyId;
+  let createdCompany = false;
+
   if (!companyId) {
     const { data: code, error: codeErr } = await supabase.rpc('next_company_code');
     if (codeErr) return { error: 'Could not generate a company code: ' + codeErr.message };
 
-    const { data: company, error: compErr } = await supabase
-      .from('company')
-      .insert({
-        company_code: code, pan,
-        legal_name: get('legal_name'),
-        trade_name: get('trade_name') || null,
-        entity: get('entity') || null,
-        is_msme: get('is_msme') === 'yes',
-        msme_category: get('is_msme') === 'yes' ? (get('msme_category') || null) : null,
-        udyam_number: get('is_msme') === 'yes' ? (get('udyam_number') || null) : null,
-        authorised_signatory: get('signatory') || null,
-        created_by: me.id, updated_by: me.id,
-      })
-      .select('id').single();
+    const body: Record<string, unknown> = { ...p.company, company_code: code, pan,
+      created_by: me.id, updated_by: me.id };
+    if (body.is_msme !== true) { body.msme_category = null; body.udyam_number = null; }
 
-    if (compErr) return { error: 'Could not create the company: ' + compErr.message };
+    const { data: company, error } = await supabase
+      .from('company').insert(body).select('id').single();
+    if (error) return { error: 'Could not create the company: ' + error.message };
     companyId = company.id;
+    createdCompany = true;
   }
 
-  const { data: siteCode, error: sErr } = await supabase
-    .rpc('next_site_code', { p_company: companyId });
-  if (sErr) return { error: 'Could not generate a site code: ' + sErr.message };
+  const { data: siteCode, error: scErr } =
+    await supabase.rpc('next_site_code', { p_company: companyId });
+  if (scErr) return { error: 'Could not generate a site code: ' + scErr.message };
 
-  const { data: site, error: siteErr } = await supabase
-    .from('vendor_site')
-    .insert({
-      company_id: companyId, site_code: siteCode,
-      site_name: get('site_name') || null,
-      gstin, industry: get('industry'),
-      address_line1: get('address_line1'), city: get('city'),
-      state: get('state'), pincode: get('pincode'),
-      created_by: me.id, updated_by: me.id,
-    })
-    .select('id').single();
+  const { data: site, error: siteErr } = await supabase.from('vendor_site').insert({
+    ...p.site, gstin, company_id: companyId, site_code: siteCode,
+    created_by: me.id, updated_by: me.id,
+  }).select('id').single();
 
   if (siteErr) {
-    // The most likely two, in plain words.
+    if (createdCompany) await supabase.from('company').delete().eq('id', companyId);
     if (siteErr.message.includes('site_unique'))
       return { error: 'A site with this GSTIN and pincode already exists. That is the same plant, not a new one.' };
     if (siteErr.message.includes('site_belongs_to_company'))
-      return { error: 'This GSTIN does not belong to the company it is being linked to. The PAN inside it does not match.' };
+      return { error: 'The PAN inside this GSTIN does not match the company it is being linked to.' };
     return { error: 'Could not create the site: ' + siteErr.message };
   }
 
-  // Primary contact, if given
-  if (get('pc_name')) {
-    await supabase.from('site_contact').insert({
-      site_id: site.id, rank: 1,
-      name: get('pc_name'), designation: get('pc_designation') || null,
-      mobile: get('pc_mobile') || null, email: get('pc_email') || null,
-    });
-  }
+  const siteId = site.id;
+
+  if (named.length)
+    await supabase.from('site_contact').insert(named.map(c => ({
+      site_id: siteId, rank: c.rank, name: c.name.trim(),
+      designation: c.designation.trim() || null,
+      mobile: c.mobile.trim() || null, email: c.email.trim() || null,
+    })));
+
+  if (p.geography.length)
+    await supabase.from('site_geography')
+      .insert(p.geography.map(state => ({ site_id: siteId, state })));
+
+  if (p.categories.length)
+    await supabase.from('site_service_category')
+      .insert(p.categories.map(category_id => ({ site_id: siteId, category_id })));
+
+  if (p.subcategories.length)
+    await supabase.from('site_service_subcategory')
+      .insert(p.subcategories.map(subcategory_id => ({ site_id: siteId, subcategory_id })));
+
+  if (Object.values(p.operations).some(v => v !== null && v !== ''))
+    await supabase.from('site_operations').insert({ site_id: siteId, ...p.operations });
+
+  if (Object.values(p.certificates).some(v => v !== null && v !== ''))
+    await supabase.from('site_certificate_data').insert({ site_id: siteId, ...p.certificates });
 
   revalidatePath('/vendors');
-  redirect(`/vendors/${site.id}`);
+  return { siteId };
 }
