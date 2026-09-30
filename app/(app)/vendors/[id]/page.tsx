@@ -10,7 +10,37 @@ import CategoriesForm, { type Cat } from './CategoriesForm';
 import DocumentsTab, { type DocType, type DocRow } from './DocumentsTab';
 import NdaPanel from './NdaPanel';
 
-export default async function VendorPage({
+/** The whole page in a try/catch, so a server error shows its message instead
+ *  of the blank digest page Next.js gives in production. */
+export default async function VendorPage(props: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
+}) {
+  try {
+    return await VendorRecord(props);
+  } catch (e) {
+    const err = e as Error & { digest?: string };
+    // notFound() and redirect() work by throwing — let those through.
+    if (err?.digest?.startsWith?.('NEXT_')) throw e;
+    return (
+      <div className="card p-6 max-w-[760px]">
+        <h1 className="text-[18px] font-bold mb-2">This record could not be loaded</h1>
+        <p className="text-[13.5px] mb-4" style={{ color: 'var(--muted)' }}>
+          Nothing has been lost. The message below says what went wrong.
+        </p>
+        <pre className="text-[12px] p-3 rounded-lg overflow-x-auto whitespace-pre-wrap"
+             style={{ background: 'var(--surface-2)', border: '1px solid var(--line)',
+                      color: 'var(--head)' }}>
+{String(err?.message ?? err)}
+{err?.stack ? '\n\n' + err.stack.split('\n').slice(0, 6).join('\n') : ''}
+        </pre>
+        <a href="/vendors" className="btn btn-o mt-4">Back to the vendor list</a>
+      </div>
+    );
+  }
+}
+
+async function VendorRecord({
   params, searchParams,
 }: {
   params: Promise<{ id: string }>;
