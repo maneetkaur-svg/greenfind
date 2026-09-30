@@ -11,10 +11,9 @@ type Row = {
 };
 
 function status(r: Row) {
-  if (r.docs_attached === 0) return ['c-r', 'NOT VERIFIED'];
-  if (r.docs_verified === r.docs_attached && r.docs_attached >= r.docs_required)
-    return ['c-g', 'VERIFIED'];
-  return ['c-a', 'PENDING'];
+  if (r.docs_required > 0 && r.docs_attached >= r.docs_required) return ['c-g', 'COMPLETE'];
+  if (r.docs_attached === 0) return ['c-r', 'NO DOCUMENTS'];
+  return ['c-a', 'INCOMPLETE'];
 }
 
 export default async function VendorsPage({
@@ -104,7 +103,6 @@ export default async function VendorsPage({
                     <td className="text-[13px]">{r.state}</td>
                     <td className="text-[13px]">
                       {r.docs_attached}/{r.docs_required} attached
-                      {r.docs_verified > 0 && ` · ${r.docs_verified} verified`}
                     </td>
                     <td>
                       <span className={`chip ${cls}`}>{label}</span>

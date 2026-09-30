@@ -29,13 +29,64 @@ h1,h2,h3,h4 { color: var(--head); letter-spacing: -.02em; }
 
 label.lab { display:block; font-size:13px; font-weight:700; color:var(--head); margin-bottom:5px; }
 .req { color: var(--err); }
-input[type=text], input[type=number], input[type=email], input[type=password],
-input[type=date], select, textarea {
-  width:100%; padding:10px 12px; font-size:14.5px; color:var(--head);
-  background:var(--surface); border:1px solid var(--line-2); border-radius:9px; outline:none;
+
+/* Every text-like control, not just the ones with an explicit type attribute.
+   An <input> with no type defaults to text and was previously unstyled, which
+   is why some boxes were invisible until focused. */
+input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=hidden]),
+select,
+textarea {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 14.5px;
+  font-family: inherit;
+  color: var(--head);
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-radius: 9px;
+  outline: none;
+  transition: border-color .12s, box-shadow .12s;
+  box-sizing: border-box;
 }
-input:focus, select:focus, textarea:focus { border-color: var(--p500); box-shadow: 0 0 0 3px var(--p50); }
+textarea { min-height: 84px; resize: vertical; line-height: 1.5; }
+
+input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=hidden]):hover,
+select:hover,
+textarea:hover { border-color: var(--n400, #808193); }
+
+input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=hidden]):focus,
+select:focus,
+textarea:focus { border-color: var(--p500); box-shadow: 0 0 0 3px var(--p50); }
+
+input:disabled, select:disabled, textarea:disabled {
+  background: var(--surface-2);
+  color: var(--faint);
+  cursor: not-allowed;
+}
+input::placeholder, textarea::placeholder { color: #9A9DB0; }
+
+/* A dropdown should not look like a text box */
+select {
+  appearance: none;
+  padding-right: 34px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2367687D' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 11px center;
+}
+
+input[type=file] {
+  width: 100%;
+  font-size: 13.5px;
+  padding: 9px 12px;
+  border: 1px dashed var(--line-2);
+  border-radius: 9px;
+  background: var(--surface-2);
+  cursor: pointer;
+}
+input[type=file]:hover { border-color: var(--p500); }
+
 input.bad, select.bad { border-color: var(--err); background: var(--err-l); }
+
 .hint { font-size:12.5px; color:var(--faint); margin-top:5px; }
 .err  { font-size:12.5px; color:var(--err); margin-top:5px; font-weight:500; }
 .note { border-left:3px solid var(--p500); background:var(--p50); padding:12px 15px;

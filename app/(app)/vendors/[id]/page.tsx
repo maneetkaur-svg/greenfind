@@ -7,6 +7,8 @@ import SectionForm from './SectionForm';
 import ContactsForm from './ContactsForm';
 import GeographyForm from './GeographyForm';
 import CategoriesForm, { type Cat } from './CategoriesForm';
+import DocumentsTab, { type DocType, type DocRow } from './DocumentsTab';
+import NdaPanel from './NdaPanel';
 
 export default async function VendorPage({
   params, searchParams,
@@ -43,6 +45,30 @@ export default async function VendorPage({
     supabase.from('vendor_site').select('id, site_code, city, state')
       .eq('company_id', site.company_id).is('deleted_at', null).order('site_code'),
   ]);
+
+  const [{ data: docRows }, { data: reqRows }] = await Promise.all([
+    supabase.from('site_document')
+      .select('id, doc_type, file_name, file_size, doc_number, valid_until, uploaded_at, storage_path')
+      .eq('site_id', id).is('superseded_at', null).order('uploaded_at', { ascending: false }),
+    supabase.from('document_requirement')
+      .select('doc_type, level, document_type!inner (code, label, applies_to, expiry_tracked, uploaded_by_party, sort)')
+      .eq('industry', site.industry),
+  ]);
+
+  const one = <T,>(v: unknown): T | null =>
+    Array.isArray(v) ? ((v[0] ?? null) as T | null) : ((v ?? null) as T | null);
+
+  const docs: DocRow[] = (docRows ?? []) as DocRow[];
+
+  type TypeRow = { code: string; label: string; applies_to: string | null;
+                   expiry_tracked: boolean; uploaded_by_party: string; sort: number };
+  const docTypes: DocType[] = (reqRows ?? [])
+    .map(r => {
+      const t = one<TypeRow>((r as { document_type?: unknown }).document_type);
+      return t ? { ...t, level: r.level } : null;
+    })
+    .filter((x): x is DocType & { sort: number } => x !== null)
+    .sort((a, b) => a.sort - b.sort);
 
   const { data: catRows } = await supabase
     .from('service_category')
@@ -87,6 +113,7 @@ export default async function VendorPage({
     { id: 'contacts', label: 'Contacts' },
     { id: 'categories', label: 'Service categories' },
     { id: 'geography', label: 'Geography' },
+    { id: 'documents', label: 'Documents' },
   ];
   const active = tabs.find(t => t.id === tab)?.id ?? tabs[0].id;
   const section = sections.find(s => s.id === active);
@@ -140,6 +167,11 @@ export default async function VendorPage({
       </div>
 
       <div className="card p-6">
+        {active === 'agreements' && (
+          <NdaPanel siteId={id} readOnly={readOnly}
+                    signatory={(company.authorised_signatory as string) ?? null}
+                    signed={docs.find(d => d.doc_type === 'nda') ?? null} />
+        )}
         {section && (
           <SectionForm section={section} values={source(section.table)}
                        siteId={id} companyId={site.company_id} readOnly={readOnly} />
@@ -151,6 +183,9 @@ export default async function VendorPage({
           <CategoriesForm cats={cats} siteId={id} readOnly={readOnly}
                           selectedCats={(selCats ?? []).map(r => r.category_id)}
                           selectedSubs={(selSubs ?? []).map(r => r.subcategory_id)} />
+        )}
+        {active === 'documents' && (
+          <DocumentsTab types={docTypes} docs={docs} siteId={id} readOnly={readOnly} />
         )}
         {active === 'geography' && (
           <GeographyForm selected={(geo ?? []).map(r => r.state)} siteId={id} readOnly={readOnly} />

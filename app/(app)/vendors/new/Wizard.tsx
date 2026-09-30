@@ -56,8 +56,7 @@ export default function Wizard({ cats }: { cats: Cat[] }) {
 
   const steps = useMemo(() => {
     const list = [
-      { id: 'registration', label: 'Registration' },
-      { id: 'identity', label: 'Identity' },
+      { id: 'identity', label: 'Identity and registration' },
       { id: 'site', label: 'Address' },
       { id: 'geography', label: 'Geography' },
       { id: 'contacts', label: 'Contacts' },
@@ -78,51 +77,64 @@ export default function Wizard({ cats }: { cats: Cat[] }) {
 
   const current = steps[Math.min(step, steps.length - 1)];
 
-  /* ---------- what blocks moving on ---------- */
-  const blocker = (): string | null => {
-    if (current.id === 'registration') {
-      if (!pan) return 'Enter a valid GSTIN.';
-      if (!industry) return 'Choose an industry type.';
+  /* ---------- Problems, gathered but never blocking ----------
+     You can move around freely and fill things in any order. Everything is
+     checked once, at the end, and each problem says which step it is on. */
+  const problems = (): { step: number; text: string }[] => {
+    const at = (id: string) => steps.findIndex(s => s.id === id);
+    const out: { step: number; text: string }[] = [];
+
+    if (!pan) out.push({ step: at('identity'), text: 'Enter a valid GSTIN.' });
+    if (!industry) out.push({ step: at('identity'), text: 'Choose an industry type.' });
+    if (!linked && !company.legal_name)
+      out.push({ step: at('identity'), text: 'Legal name is required.' });
+    if (!linked && company.is_msme === true && (!company.msme_category || !company.udyam_number))
+      out.push({ step: at('identity'), text: 'An MSME needs an enterprise category and a Udyam number.' });
+
+    if (!site.address_line1) out.push({ step: at('site'), text: 'Address is required.' });
+    if (!site.city) out.push({ step: at('site'), text: 'City is required.' });
+    if (!site.state) out.push({ step: at('site'), text: 'State is required.' });
+    if (!RX.pincode.test(String(site.pincode ?? '')))
+      out.push({ step: at('site'), text: 'Pincode must be six digits and cannot start with zero.' });
+
+    if (!contacts[0].name.trim())
+      out.push({ step: at('contacts'), text: 'The primary contact needs a name.' });
+    if (!contacts[1].name.trim())
+      out.push({ step: at('contacts'), text: 'The secondary contact needs a name.' });
+
+    for (const id of pickedCats) {
+      const c = industryCats.find(x => x.id === id);
+      if (c && c.subs.length && !c.subs.some(x => pickedSubs.includes(x.id)))
+        out.push({ step: at('categories'),
+                   text: `${c.label}: pick at least one sub-category, or remove the category.` });
     }
-    if (current.id === 'identity' && !linked && !company.legal_name)
-      return 'Legal name is required.';
-    if (current.id === 'identity' && !linked && company.is_msme === true
-        && (!company.msme_category || !company.udyam_number))
-      return 'An MSME needs an enterprise category and a Udyam number.';
-    if (current.id === 'site') {
-      if (!site.address_line1) return 'Address is required.';
-      if (!site.city) return 'City is required.';
-      if (!site.state) return 'State is required.';
-      if (!RX.pincode.test(String(site.pincode ?? ''))) return 'Pincode must be six digits.';
-    }
-    if (current.id === 'contacts') {
-      if (!contacts[0].name.trim()) return 'The primary contact needs a name.';
-      if (!contacts[1].name.trim()) return 'The secondary contact needs a name.';
-    }
-    if (current.id === 'categories') {
-      for (const id of pickedCats) {
-        const c = industryCats.find(x => x.id === id);
-        if (c && c.subs.length && !c.subs.some(s => pickedSubs.includes(s.id)))
-          return `${c.label}: pick at least one sub-category, or remove the category.`;
-      }
-    }
-    if (current.id === 'banking') {
-      const ifsc = String(company.ifsc ?? '');
-      if (ifsc && !RX.ifsc.test(ifsc.toUpperCase()))
-        return 'IFSC must be eleven characters, like HDFC0000432.';
-    }
-    return null;
+
+    const ifsc = String(company.ifsc ?? '');
+    if (ifsc && !RX.ifsc.test(ifsc.toUpperCase()))
+      out.push({ step: at('banking'), text: 'IFSC must be eleven characters, like HDFC0000432.' });
+
+    return out;
   };
 
-  const next = () => {
-    const b = blocker();
-    if (b) { setError(b); return; }
-    setError(''); setStep(s => Math.min(s + 1, steps.length - 1));
+  const [issues, setIssues] = useState<{ step: number; text: string }[]>([]);
+
+  /* Any step, any order. Nothing is gated. */
+  const go = (i: number) => {
+    setError(''); setStep(Math.max(0, Math.min(i, steps.length - 1)));
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
-  const back = () => { setError(''); setStep(s => Math.max(0, s - 1)); };
+  const next = () => go(step + 1);
+  const back = () => go(step - 1);
 
   const submit = async () => {
+    const found = problems();
+    if (found.length) {
+      setIssues(found);
+      setError(`${found.length} thing${found.length === 1 ? '' : 's'} still to fix before this can be created.`);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    setIssues([]);
     setBusy(true); setError('');
     const res = await createVendor({
       linkCompanyId: linkTo,
@@ -170,17 +182,17 @@ export default function Wizard({ cats }: { cats: Cat[] }) {
         <aside className="card p-2 lg:sticky lg:top-24">
           {steps.map((s, i) => (
             <button key={s.id} type="button"
-                    onClick={() => { if (i < step) { setError(''); setStep(i); } }}
+                    onClick={() => go(i)}
                     className="w-full text-left flex gap-3 items-center px-3 py-2 rounded-lg"
                     style={i === step
                       ? { background: 'var(--p50)', color: 'var(--p700)', fontWeight: 700 }
-                      : { color: i < step ? 'var(--head)' : 'var(--faint)',
-                          cursor: i < step ? 'pointer' : 'default' }}>
+                      : { color: 'var(--head)', cursor: 'pointer' }}>
               <span className="grid place-items-center rounded-full text-[11px] font-bold shrink-0"
                     style={{ width: 21, height: 21,
-                             background: i < step ? 'var(--p100)' : i === step ? 'var(--p500)' : 'var(--surface-2)',
-                             color: i === step ? '#fff' : i < step ? 'var(--p700)' : 'var(--faint)' }}>
-                {i < step ? '✓' : i + 1}
+                             background: i === step ? 'var(--p500)' : 'var(--surface-2)',
+                             color: i === step ? '#fff' : 'var(--faint)',
+                             border: '1px solid ' + (i === step ? 'var(--p500)' : 'var(--line-2)') }}>
+                {i + 1}
               </span>
               <span className="text-[13px]">{s.label}</span>
             </button>
@@ -190,13 +202,31 @@ export default function Wizard({ cats }: { cats: Cat[] }) {
         <main className="card p-6">
           <h2 className="text-[17px] font-bold mb-1">{current.label}</h2>
           {error && <div className="note r my-4">{error}</div>}
+          {issues.length > 0 && (
+            <div className="note a mb-4">
+              <b>Still to fix:</b>
+              <ul className="mt-2 ml-4 list-disc">
+                {issues.map((p, i) => (
+                  <li key={i} className="mb-1">
+                    {p.text}{' '}
+                    <button type="button" onClick={() => go(p.step)}
+                            style={{ color: 'var(--p600)', fontWeight: 600,
+                                     textDecoration: 'underline' }}>
+                      go to {steps[p.step]?.label}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
-          {current.id === 'registration' && (
+          {current.id === 'identity' && (
             <>
               <p className="text-[13.5px] mb-4" style={{ color: 'var(--faint)' }}>
-                Start here. The GSTIN decides which company this belongs to, and the
-                industry decides which steps follow.
+                Start with the GSTIN. The PAN sits inside it, which is how the company
+                is recognised, and the industry decides which steps follow.
               </p>
+
               <FieldGrid fields={regFields} values={site}
                          onChange={(k, v) => setSite(p => ({ ...p, [k]: k === 'gstin'
                            ? String(v).toUpperCase() : v }))} />
@@ -205,13 +235,13 @@ export default function Wizard({ cats }: { cats: Cat[] }) {
                 <div className="hint">PAN <b>{pan}</b>{gstState && <> · {gstState}</>}</div>
               )}
 
-              {lookup?.found && (
+              {parent && (
                 <div className="note a mt-4">
-                  <b>{lookup.legal_name}</b> ({lookup.company_code}) is already on record
-                  under this PAN, with {lookup.site_count} site{lookup.site_count === 1 ? '' : 's'}.
+                  <b>{parent.legal_name}</b> ({parent.company_code}) is already on record
+                  under this PAN, with {parent.site_count} site{parent.site_count === 1 ? '' : 's'}.
                   <div className="flex gap-2 mt-3 flex-wrap">
                     <button type="button" className={`btn ${linked ? 'btn-p' : 'btn-o'}`}
-                            onClick={() => setLinkTo(lookup.id)}>
+                            onClick={() => setLinkTo(parent.id)}>
                       {linked ? '✓ Linking as another site' : 'Link as another site'}
                     </button>
                     <button type="button" className={`btn ${!linked ? 'btn-p' : 'btn-o'}`}
@@ -219,35 +249,28 @@ export default function Wizard({ cats }: { cats: Cat[] }) {
                       This is a different company
                     </button>
                   </div>
-                  {linked && (
-                    <div className="hint mt-3">
-                      Identity, banking and agreements come from {lookup.company_code} and
-                      are skipped. This site keeps its own address and certificates.
-                    </div>
-                  )}
+                </div>
+              )}
+
+              {linked ? (
+                <div className="note mt-5">
+                  <b>Company details come from {parent?.company_code}.</b> Identity,
+                  banking and agreements already exist and are shared by every site.
+                  Edit them on any of that company&apos;s records and all of them see it.
+                </div>
+              ) : (
+                <div className="mt-6 pt-5 border-t" style={{ borderColor: 'var(--line)' }}>
+                  <div className="text-[11px] font-bold uppercase tracking-[.07em] mb-3"
+                       style={{ color: 'var(--p600)' }}>Company</div>
+                  <FieldGrid
+                    fields={sec('identity').fields.filter(f => f.key !== 'pan')}
+                    values={company}
+                    onChange={(k, v) => setCompany(p => ({ ...p, [k]: v }))} />
+                  <div className="hint mt-3">PAN will be {pan ?? 'taken from the GSTIN'}.</div>
                 </div>
               )}
             </>
           )}
-
-          {current.id === 'identity' && (linked ? (
-            <div className="note">
-              <b>Skipped.</b> This site is being linked to {parent?.company_code}, so the
-              identity, banking and agreement details already exist. Edit them on any of
-              that company&apos;s records and every site sees the change.
-            </div>
-          ) : (
-            <>
-              <p className="text-[13.5px] mb-4" style={{ color: 'var(--faint)' }}>
-                {sec('identity').blurb}
-              </p>
-              <FieldGrid
-                fields={sec('identity').fields.filter(f => f.key !== 'pan')}
-                values={company}
-                onChange={(k, v) => setCompany(p => ({ ...p, [k]: v }))} />
-              <div className="hint mt-3">PAN will be {pan ?? 'taken from the GSTIN'}.</div>
-            </>
-          ))}
 
           {current.id === 'site' && (
             <>
@@ -484,13 +507,20 @@ export default function Wizard({ cats }: { cats: Cat[] }) {
                     disabled={step === 0} style={step === 0 ? { opacity: .4 } : undefined}>
               Back
             </button>
-            {current.id === 'review' ? (
-              <button type="button" className="btn btn-p" onClick={submit} disabled={busy}>
-                {busy ? 'Creating…' : 'Create vendor'}
-              </button>
-            ) : (
-              <button type="button" className="btn btn-p" onClick={next}>Continue</button>
-            )}
+            <div className="flex gap-3 flex-wrap">
+              {current.id !== 'review' && (
+                <button type="button" className="btn btn-o" onClick={() => go(steps.length - 1)}>
+                  Skip to review
+                </button>
+              )}
+              {current.id === 'review' ? (
+                <button type="button" className="btn btn-p" onClick={submit} disabled={busy}>
+                  {busy ? 'Creating…' : 'Create vendor'}
+                </button>
+              ) : (
+                <button type="button" className="btn btn-p" onClick={next}>Continue</button>
+              )}
+            </div>
           </div>
         </main>
       </div>
