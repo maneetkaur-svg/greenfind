@@ -1,8 +1,5 @@
 import type { Metadata } from 'next';
-import { DM_Sans } from 'next/font/google';
 import './globals.css';
-
-const dmSans = DM_Sans({ subsets: ['latin'], variable: '--font-dm-sans' });
 
 export const metadata: Metadata = {
   title: 'GreenFind — Vendor Master',
@@ -11,7 +8,17 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={dmSans.variable}>
+    <html lang="en">
+      <head>
+        {/* Loaded by the browser rather than by next/font, so a slow or blocked
+            Google Fonts request can never fail the build. */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap"
+          rel="stylesheet"
+        />
+      </head>
       <body>{children}</body>
     </html>
   );
