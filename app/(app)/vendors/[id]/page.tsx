@@ -1,4 +1,4 @@
-Mimport Link from 'next/link';
+import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { createClient, getMe } from '@/lib/supabase/server';
 import { sectionsFor } from '@/lib/schema';
