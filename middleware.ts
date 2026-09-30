@@ -6,6 +6,9 @@ type CookieToSet = { name: string; value: string; options?: CookieOptions };
 /** Refreshes the session on every request and keeps signed-out users
  *  away from everything except /login. */
 export async function middleware(request: NextRequest) {
+  // Demo mode: no login, so there is no session to check or refresh.
+  if (process.env.DEMO_MODE === 'true') return NextResponse.next({ request });
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -27,12 +30,13 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   const path = request.nextUrl.pathname;
 
-  if (!user && path !== '/login') {
+  const open = path === '/login' || path === '/setup';
+  if (!user && !open) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     return NextResponse.redirect(url);
   }
-  if (user && path === '/login') {
+  if (user && (path === '/login' || path === '/setup')) {
     const url = request.nextUrl.clone();
     url.pathname = '/vendors';
     return NextResponse.redirect(url);
