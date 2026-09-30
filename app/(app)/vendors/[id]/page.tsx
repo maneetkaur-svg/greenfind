@@ -21,8 +21,16 @@ export default async function VendorPage({
 
   const supabase = await createClient();
 
-  const { data: site } = await supabase
-    .from('vendor_site').select('*').eq('id', id).is('deleted_at', null).single();
+  const { data: site, error: siteErr } = await supabase
+    .from('vendor_site').select('*').eq('id', id).is('deleted_at', null).maybeSingle();
+
+  if (siteErr) {
+    return (
+      <div className="note r">
+        <b>Could not load this vendor.</b> {siteErr.message}
+      </div>
+    );
+  }
   if (!site) notFound();
 
   const [{ data: company }, { data: contacts }, { data: ops },
@@ -41,10 +49,18 @@ export default async function VendorPage({
     .select('id, code, label, sort, service_subcategory (id, code, label, sort)')
     .eq('industry', site.industry).eq('is_active', true).order('sort');
 
+  // Postgres may report this relationship as one-to-one, in which case the
+  // embedded value arrives as an object rather than an array. Calling .sort()
+  // on an object throws, so normalise before touching it.
+  type SubRow = { id: string; code: string; label: string; sort: number };
+  const asArray = (v: unknown): SubRow[] =>
+    Array.isArray(v) ? (v as SubRow[]) : v ? [v as SubRow] : [];
+
   const cats: Cat[] = (catRows ?? []).map(c => ({
     id: c.id, code: c.code, label: c.label,
-    subs: ((c.service_subcategory ?? []) as { id: string; code: string; label: string; sort: number }[])
-      .sort((a, b) => a.sort - b.sort)
+    subs: asArray((c as { service_subcategory?: unknown }).service_subcategory)
+      .slice()
+      .sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0))
       .map(s => ({ id: s.id, code: s.code, label: s.label })),
   }));
 
@@ -52,6 +68,15 @@ export default async function VendorPage({
     supabase.from('site_service_category').select('category_id').eq('site_id', id),
     supabase.from('site_service_subcategory').select('subcategory_id').eq('site_id', id),
   ]);
+
+  if (!company) {
+    return (
+      <div className="note r">
+        <b>This site has no company attached.</b> That should not be possible —
+        send me the site code {site.site_code} and I will look at it.
+      </div>
+    );
+  }
 
   const readOnly = me.role === 'user';
   const sections = sectionsFor(site.industry);
@@ -79,7 +104,7 @@ export default async function VendorPage({
 
       <div className="flex justify-between items-start gap-4 flex-wrap mt-2 mb-5">
         <div>
-          <h1 className="text-[26px] font-bold">{company?.legal_name ?? 'Vendor'}</h1>
+          <h1 className="text-[26px] font-bold">{company.legal_name}</h1>
           <p className="text-[13.5px] mt-1" style={{ color: 'var(--faint)' }}>
             {site.site_code} · {industryLabel} · {site.city}, {site.state} · {site.gstin}
           </p>
@@ -89,7 +114,7 @@ export default async function VendorPage({
 
       {siblings && siblings.length > 1 && (
         <div className="note mb-5">
-          <b>{company?.company_code} has {siblings.length} sites.</b> Identity, banking and
+          <b>{company.company_code} has {siblings.length} sites.</b> Identity, banking and
           agreements are shared. Address, certificates and contacts belong to this site.
           <div className="flex gap-2 mt-3 flex-wrap">
             {siblings.map(s => (
