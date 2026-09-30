@@ -46,7 +46,9 @@ export default async function LoginPage({
         </form>
 
         <p className="hint mt-4">
-          No account? A Super Admin creates one in Supabase and adds your profile row.
+          No account yet? If nobody has set this up,{' '}
+          <a href="/setup" style={{ color: 'var(--p600)', fontWeight: 600 }}>create the first one</a>.
+          Otherwise ask a Super Admin to add you.
         </p>
       </div>
     </div>
