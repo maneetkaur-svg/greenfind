@@ -60,7 +60,6 @@ export default function Wizard({ cats }: { cats: Cat[] }) {
       { id: 'site', label: 'Address' },
       { id: 'geography', label: 'Geography' },
       { id: 'contacts', label: 'Contacts' },
-      { id: 'categories', label: 'Service categories' },
     ];
     if (industry === 'transportation') list.push({ id: 'fleet', label: 'Fleet' });
     else if (industry) list.push({ id: 'operations', label: 'Operations' });
@@ -105,7 +104,7 @@ export default function Wizard({ cats }: { cats: Cat[] }) {
     for (const id of pickedCats) {
       const c = industryCats.find(x => x.id === id);
       if (c && c.subs.length && !c.subs.some(x => pickedSubs.includes(x.id)))
-        out.push({ step: at('categories'),
+        out.push({ step: at('identity'),
                    text: `${c.label}: pick at least one sub-category, or remove the category.` });
     }
 
@@ -168,6 +167,65 @@ export default function Wizard({ cats }: { cats: Cat[] }) {
       setGeo(p => [...new Set([...p, ...sts])]);
     }
   };
+
+  const categoryPicker = (
+    industryCats.length ? (
+      <>
+        <div className="flex gap-2 flex-wrap mb-4">
+          {industryCats.map(c => (
+            <button key={c.id} type="button"
+                    className={`chip ${pickedCats.includes(c.id) ? 'c-g' : 'c-n'}`}
+                    style={{ padding: '7px 14px', fontSize: 13, cursor: 'pointer' }}
+                    onClick={() => {
+                      if (pickedCats.includes(c.id)) {
+                        setPickedCats(p => p.filter(x => x !== c.id));
+                        setPickedSubs(p => p.filter(sub => !c.subs.some(x => x.id === sub)));
+                      } else setPickedCats(p => [...p, c.id]);
+                    }}>{c.label}</button>
+          ))}
+        </div>
+        {pickedCats.map(id => {
+          const c = industryCats.find(x => x.id === id);
+          if (!c || !c.subs.length) return null;
+          const n = c.subs.filter(x => pickedSubs.includes(x.id)).length;
+          return (
+            <div key={id} className="card p-4 mb-3" style={{ background: 'var(--surface-2)' }}>
+              <div className="flex justify-between items-center gap-3 mb-3 flex-wrap">
+                <span className="text-[13px] font-bold" style={{ color: 'var(--head)' }}>{c.label}</span>
+                <span className={`chip ${n ? 'c-g' : 'c-r'}`}>{n}/{c.subs.length}</span>
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                {c.subs.map(sub => (
+                  <button key={sub.id} type="button"
+                          className={`chip ${pickedSubs.includes(sub.id) ? 'c-g' : 'c-n'}`}
+                          style={{ padding: '6px 12px', fontSize: 12.5, cursor: 'pointer' }}
+                          onClick={() => setPickedSubs(p =>
+                            p.includes(sub.id) ? p.filter(x => x !== sub.id) : [...p, sub.id])}>
+                    {sub.label}
+                  </button>
+                ))}
+              </div>
+              {!n && <div className="err mt-2">Pick at least one, or remove the category.</div>}
+            </div>
+          );
+        })}
+        {pickedCats.some(id => {
+          const c = industryCats.find(x => x.id === id);
+          return c && !c.subs.length;
+        }) && (
+          <div className="hint">
+            Categories with no sub-categories are complete on their own — those lists
+            have not been supplied yet.
+          </div>
+        )}
+      </>
+    ) : (
+      <div className="note a">
+        No categories are set up for this industry yet. Run <b>03_reference_data.sql</b>
+        in Supabase, then reload this page.
+      </div>
+    )
+  );
 
   return (
     <>
@@ -249,6 +307,18 @@ export default function Wizard({ cats }: { cats: Cat[] }) {
                       This is a different company
                     </button>
                   </div>
+                </div>
+              )}
+
+              {industry && (
+                <div className="mt-6 pt-5 border-t" style={{ borderColor: 'var(--line)' }}>
+                  <div className="text-[11px] font-bold uppercase tracking-[.07em] mb-1"
+                       style={{ color: 'var(--p600)' }}>Service category</div>
+                  <p className="text-[13px] mb-3" style={{ color: 'var(--faint)' }}>
+                    What this site is registered or set up for. Where a category has
+                    sub-categories, pick at least one.
+                  </p>
+                  {categoryPicker}
                 </div>
               )}
 
@@ -375,59 +445,6 @@ export default function Wizard({ cats }: { cats: Cat[] }) {
                 </div>
               ))}
             </>
-          )}
-
-          {current.id === 'categories' && (
-            industryCats.length ? (
-              <>
-                <p className="text-[13.5px] mb-4" style={{ color: 'var(--faint)' }}>
-                  Pick every category this site is registered or set up for. Where a
-                  category has sub-categories, pick at least one.
-                </p>
-                <div className="flex gap-2 flex-wrap mb-4">
-                  {industryCats.map(c => (
-                    <button key={c.id} type="button"
-                            className={`chip ${pickedCats.includes(c.id) ? 'c-g' : 'c-n'}`}
-                            style={{ padding: '7px 14px', fontSize: 13, cursor: 'pointer' }}
-                            onClick={() => {
-                              if (pickedCats.includes(c.id)) {
-                                setPickedCats(p => p.filter(x => x !== c.id));
-                                setPickedSubs(p => p.filter(s => !c.subs.some(x => x.id === s)));
-                              } else setPickedCats(p => [...p, c.id]);
-                            }}>{c.label}</button>
-                  ))}
-                </div>
-                {pickedCats.map(id => {
-                  const c = industryCats.find(x => x.id === id);
-                  if (!c || !c.subs.length) return null;
-                  const n = c.subs.filter(s => pickedSubs.includes(s.id)).length;
-                  return (
-                    <div key={id} className="card p-4 mb-3" style={{ background: 'var(--surface-2)' }}>
-                      <div className="flex justify-between items-center gap-3 mb-3 flex-wrap">
-                        <span className="text-[13px] font-bold" style={{ color: 'var(--head)' }}>{c.label}</span>
-                        <span className={`chip ${n ? 'c-g' : 'c-r'}`}>{n}/{c.subs.length}</span>
-                      </div>
-                      <div className="flex gap-2 flex-wrap">
-                        {c.subs.map(s => (
-                          <button key={s.id} type="button"
-                                  className={`chip ${pickedSubs.includes(s.id) ? 'c-g' : 'c-n'}`}
-                                  style={{ padding: '6px 12px', fontSize: 12.5, cursor: 'pointer' }}
-                                  onClick={() => setPickedSubs(p =>
-                                    p.includes(s.id) ? p.filter(x => x !== s.id) : [...p, s.id])}>
-                            {s.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </>
-            ) : (
-              <div className="note a">
-                No categories are configured for this industry. Run
-                <b> 03_reference_data.sql</b> in Supabase.
-              </div>
-            )
           )}
 
           {(current.id === 'operations' || current.id === 'fleet') && (
