@@ -1,28 +1,34 @@
 'use client';
 import { useActionState, useState } from 'react';
 import { saveSection, type SaveState } from './actions';
-import type { Section } from '@/lib/schema';
+import { SECTIONS } from '@/lib/schema';
 
+/** Takes the section id, not the section. The definitions contain showIf
+ *  functions, and a function cannot be passed from a server component to a
+ *  client one — React throws when it tries to serialise it. Looking it up
+ *  here keeps only plain strings crossing the boundary. */
 export default function SectionForm({
-  section, values, siteId, companyId, readOnly,
+  sectionId, values, siteId, companyId, readOnly,
 }: {
-  section: Section;
+  sectionId: string;
   values: Record<string, unknown>;
   siteId: string;
   companyId: string;
   readOnly: boolean;
 }) {
+  const section = SECTIONS.find(s => s.id === sectionId);
   const [state, action, pending] = useActionState<SaveState, FormData>(saveSection, {});
   const [live, setLive] = useState<Record<string, unknown>>(values);
 
   const set = (k: string, v: unknown) => setLive(p => ({ ...p, [k]: v }));
+  if (!section) return <p className="text-[13.5px]">Unknown section.</p>;
   const visible = section.fields.filter(f => !f.showIf || f.showIf(live));
 
   return (
     <form action={action}>
       <input type="hidden" name="__site_id" value={siteId} />
       <input type="hidden" name="__company_id" value={companyId} />
-      <input type="hidden" name="__section" value={section.id} />
+      <input type="hidden" name="__section" value={sectionId} />
 
       {section.blurb && (
         <p className="text-[13.5px] mb-4" style={{ color: 'var(--faint)' }}>{section.blurb}</p>

@@ -10,7 +10,37 @@ import CategoriesForm, { type Cat } from './CategoriesForm';
 import DocumentsTab, { type DocType, type DocRow } from './DocumentsTab';
 import NdaPanel from './NdaPanel';
 
-export default async function VendorPage({
+/** The whole page in a try/catch, so a server error shows its message instead
+ *  of the blank digest page Next.js gives in production. */
+export default async function VendorPage(props: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
+}) {
+  try {
+    return await VendorRecord(props);
+  } catch (e) {
+    const err = e as Error & { digest?: string };
+    // notFound() and redirect() work by throwing — let those through.
+    if (err?.digest?.startsWith?.('NEXT_')) throw e;
+    return (
+      <div className="card p-6 max-w-[760px]">
+        <h1 className="text-[18px] font-bold mb-2">This record could not be loaded</h1>
+        <p className="text-[13.5px] mb-4" style={{ color: 'var(--muted)' }}>
+          Nothing has been lost. The message below says what went wrong.
+        </p>
+        <pre className="text-[12px] p-3 rounded-lg overflow-x-auto whitespace-pre-wrap"
+             style={{ background: 'var(--surface-2)', border: '1px solid var(--line)',
+                      color: 'var(--head)' }}>
+{String(err?.message ?? err)}
+{err?.stack ? '\n\n' + err.stack.split('\n').slice(0, 6).join('\n') : ''}
+        </pre>
+        <a href="/vendors" className="btn btn-o mt-4">Back to the vendor list</a>
+      </div>
+    );
+  }
+}
+
+async function VendorRecord({
   params, searchParams,
 }: {
   params: Promise<{ id: string }>;
@@ -35,8 +65,9 @@ export default async function VendorPage({
   }
   if (!site) notFound();
 
-  const [{ data: company }, { data: contacts }, { data: ops },
-         { data: certs }, { data: geo }, { data: siblings }] = await Promise.all([
+  const [{ data: company, error: eCompany }, { data: contacts, error: eContacts },
+         { data: ops, error: eOps }, { data: certs, error: eCerts },
+         { data: geo, error: eGeo }, { data: siblings, error: eSiblings }] = await Promise.all([
     supabase.from('company').select('*').eq('id', site.company_id).single(),
     supabase.from('site_contact').select('*').eq('site_id', id).order('rank'),
     supabase.from('site_operations').select('*').eq('site_id', id).maybeSingle(),
@@ -46,7 +77,7 @@ export default async function VendorPage({
       .eq('company_id', site.company_id).is('deleted_at', null).order('site_code'),
   ]);
 
-  const [{ data: docRows }, { data: reqRows }] = await Promise.all([
+  const [{ data: docRows, error: eDocs }, { data: reqRows, error: eReq }] = await Promise.all([
     supabase.from('site_document')
       .select('id, doc_type, file_name, file_size, doc_number, valid_until, uploaded_at, storage_path')
       .eq('site_id', id).is('superseded_at', null).order('uploaded_at', { ascending: false }),
@@ -58,19 +89,19 @@ export default async function VendorPage({
   const one = <T,>(v: unknown): T | null =>
     Array.isArray(v) ? ((v[0] ?? null) as T | null) : ((v ?? null) as T | null);
 
-  const docs: DocRow[] = (docRows ?? []) as DocRow[];
+  const docs: DocRow[] = Array.isArray(docRows) ? (docRows as DocRow[]) : [];
 
   type TypeRow = { code: string; label: string; applies_to: string | null;
                    expiry_tracked: boolean; uploaded_by_party: string; sort: number };
-  const docTypes: DocType[] = (reqRows ?? [])
+  const docTypes: DocType[] = (Array.isArray(reqRows) ? reqRows : [])
     .map(r => {
       const t = one<TypeRow>((r as { document_type?: unknown }).document_type);
       return t ? { ...t, level: r.level } : null;
     })
     .filter((x): x is DocType & { sort: number } => x !== null)
-    .sort((a, b) => a.sort - b.sort);
+    .sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0));
 
-  const { data: catRows } = await supabase
+  const { data: catRows, error: eCats } = await supabase
     .from('service_category')
     .select('id, code, label, sort, service_subcategory (id, code, label, sort)')
     .eq('industry', site.industry).eq('is_active', true).order('sort');
@@ -82,7 +113,7 @@ export default async function VendorPage({
   const asArray = (v: unknown): SubRow[] =>
     Array.isArray(v) ? (v as SubRow[]) : v ? [v as SubRow] : [];
 
-  const cats: Cat[] = (catRows ?? []).map(c => ({
+  const cats: Cat[] = (Array.isArray(catRows) ? catRows : []).map(c => ({
     id: c.id, code: c.code, label: c.label,
     subs: asArray((c as { service_subcategory?: unknown }).service_subcategory)
       .slice()
@@ -90,7 +121,7 @@ export default async function VendorPage({
       .map(s => ({ id: s.id, code: s.code, label: s.label })),
   }));
 
-  const [{ data: selCats }, { data: selSubs }] = await Promise.all([
+  const [{ data: selCats, error: eSelCats }, { data: selSubs, error: eSelSubs }] = await Promise.all([
     supabase.from('site_service_category').select('category_id').eq('site_id', id),
     supabase.from('site_service_subcategory').select('subcategory_id').eq('site_id', id),
   ]);
@@ -103,6 +134,16 @@ export default async function VendorPage({
       </div>
     );
   }
+
+  // Any query that failed is named here rather than left to crash the render.
+  const queryErrors = ([
+    ['company', eCompany], ['contacts', eContacts], ['operations', eOps],
+    ['certificate data', eCerts], ['geography', eGeo], ['sibling sites', eSiblings],
+    ['documents', eDocs], ['document rules', eReq], ['service categories', eCats],
+    ['selected categories', eSelCats], ['selected sub-categories', eSelSubs],
+  ] as [string, { message: string } | null][])
+    .filter(([, e]) => e)
+    .map(([name, e]) => `${name}: ${e!.message}`);
 
   const readOnly = me.role === 'user';
   const sections = sectionsFor(site.industry);
@@ -139,7 +180,17 @@ export default async function VendorPage({
         {readOnly && <span className="chip c-a">READ ONLY</span>}
       </div>
 
-      {siblings && siblings.length > 1 && (
+      {queryErrors.length > 0 && (
+        <div className="note r mb-5">
+          <b>Some parts of this record could not be loaded.</b> Everything else below
+          still works.
+          <ul className="mt-2 ml-4 list-disc text-[12.5px]">
+            {queryErrors.map((m, i) => <li key={i}>{m}</li>)}
+          </ul>
+        </div>
+      )}
+
+      {Array.isArray(siblings) && siblings.length > 1 && (
         <div className="note mb-5">
           <b>{company.company_code} has {siblings.length} sites.</b> Identity, banking and
           agreements are shared. Address, certificates and contacts belong to this site.
@@ -173,22 +224,24 @@ export default async function VendorPage({
                     signed={docs.find(d => d.doc_type === 'nda') ?? null} />
         )}
         {section && (
-          <SectionForm section={section} values={source(section.table)}
+          <SectionForm sectionId={section.id} values={source(section.table)}
                        siteId={id} companyId={site.company_id} readOnly={readOnly} />
         )}
         {active === 'contacts' && (
-          <ContactsForm contacts={contacts ?? []} siteId={id} readOnly={readOnly} />
+          <ContactsForm contacts={Array.isArray(contacts) ? contacts : []}
+                        siteId={id} readOnly={readOnly} />
         )}
         {active === 'categories' && (
           <CategoriesForm cats={cats} siteId={id} readOnly={readOnly}
-                          selectedCats={(selCats ?? []).map(r => r.category_id)}
-                          selectedSubs={(selSubs ?? []).map(r => r.subcategory_id)} />
+                          selectedCats={(Array.isArray(selCats) ? selCats : []).map(r => r.category_id)}
+                          selectedSubs={(Array.isArray(selSubs) ? selSubs : []).map(r => r.subcategory_id)} />
         )}
         {active === 'documents' && (
           <DocumentsTab types={docTypes} docs={docs} siteId={id} readOnly={readOnly} />
         )}
         {active === 'geography' && (
-          <GeographyForm selected={(geo ?? []).map(r => r.state)} siteId={id} readOnly={readOnly} />
+          <GeographyForm selected={(Array.isArray(geo) ? geo : []).map(r => r.state)}
+                         siteId={id} readOnly={readOnly} />
         )}
       </div>
     </>
