@@ -1,5 +1,7 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { createClient as createDirectClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
+import { DEV_AUTH_BYPASS, DEV_PROFILE } from '@/lib/devAuth';
 
 type CookieToSet = { name: string; value: string; options?: CookieOptions };
 
@@ -12,6 +14,25 @@ export type Profile = {
 };
 
 export async function createClient() {
+  // With the bypass on there is no signed-in user, so auth.uid() is null and
+  // every row-level security policy denies. The service key is what lets the
+  // dev server read and write. RLS itself is untouched — the policies are all
+  // still there, this key simply outranks them.
+  //
+  // This file only ever runs on the server. The key is never sent to a browser,
+  // and DEV_AUTH_BYPASS cannot be true in a production build or on Vercel.
+  if (DEV_AUTH_BYPASS) {
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!key)
+      throw new Error(
+        'DEV_AUTH_BYPASS is on but SUPABASE_SERVICE_ROLE_KEY is missing from .env.local. ' +
+        'Without a signed-in user, row-level security refuses every query, so the key is required.'
+      );
+    return createDirectClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, key, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+  }
+
   const cookieStore = await cookies();
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -35,6 +56,8 @@ export async function createClient() {
 /** The signed-in user with their profile row.
  *  No profile row means no permissions at all — that is deliberate. */
 export async function getMe(): Promise<Profile | null> {
+  if (DEV_AUTH_BYPASS) return DEV_PROFILE;
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;

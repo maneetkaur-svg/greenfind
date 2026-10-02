@@ -3,6 +3,8 @@ import Link from 'next/link';
 import { getMe } from '@/lib/supabase/server';
 import { signOut } from '@/app/login/actions';
 import { ROLE_LABEL } from '@/lib/constants';
+import { DEV_AUTH_BYPASS } from '@/lib/devAuth';
+import DevBanner from './DevBanner';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const me = await getMe();
@@ -10,6 +12,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="min-h-screen">
+      <DevBanner />
       <header className="sticky top-0 z-30 border-b"
               style={{ background: 'var(--surface)', borderColor: 'var(--line)' }}>
         <div className="max-w-[1240px] mx-auto px-5 py-3 flex items-center gap-4 flex-wrap">
@@ -41,11 +44,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
           <div className="ml-auto flex items-center gap-3">
             <span className="chip c-n">{me.full_name} · {ROLE_LABEL[me.role]}</span>
-            <form action={signOut}>
-              <button className="text-[13px] font-semibold" style={{ color: 'var(--faint)' }}>
-                Sign out
-              </button>
-            </form>
+            {!DEV_AUTH_BYPASS && (
+              <form action={signOut}>
+                <button className="text-[13px] font-semibold" style={{ color: 'var(--faint)' }}>
+                  Sign out
+                </button>
+              </form>
+            )}
           </div>
         </div>
       </header>
