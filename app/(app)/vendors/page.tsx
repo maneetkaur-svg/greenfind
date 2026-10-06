@@ -46,7 +46,10 @@ export default async function VendorsPage({
           </p>
         </div>
         {me?.role !== 'user' && (
-          <Link href="/vendors/new" className="btn btn-p">+ Add vendor</Link>
+          <div className="flex gap-2">
+            <Link href="/vendors/import" className="btn btn-o">Import</Link>
+            <Link href="/vendors/new" className="btn btn-p">+ Add vendor</Link>
+          </div>
         )}
       </div>
 

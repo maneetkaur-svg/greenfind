@@ -1,87 +1,110 @@
 # Development authentication bypass
 
-Lets you run the application locally without signing in, so the vendor
-workflow can be tested before Supabase accounts are sorted out.
+Run the application locally without signing in, so the vendor workflow can be
+tested before Supabase accounts are sorted out.
 
-**It cannot be switched on in production or on Vercel.** That is enforced in
-code, not by remembering to turn it off.
+**It cannot switch on in production or on Vercel.** Enforced in code, not by
+remembering.
 
 ---
 
-## Turning it on
+## Why the login alone is not enough
 
-Add one line to `.env.local`:
+Every row-level security policy asks `auth.uid()` — who is making this request.
+Skipping the login means there is no session, `auth.uid()` is null, `my_role()`
+returns null, and **every policy denies**. You get a working interface showing
+zero vendors and failing every save.
+
+So something has to tell the server who it is. There are two ways, and the first
+is much better.
+
+---
+
+## Mode A — a real account. Preferred.
+
+The server signs in as a genuine Supabase account using credentials from
+`.env.local`.
 
 ```
 DEV_AUTH_BYPASS=true
+DEV_AUTH_EMAIL=you@fitsol.green
+DEV_AUTH_PASSWORD=your-password
 ```
 
-Your `.env.local` should then have four lines:
+What this gives you:
+
+- `auth.uid()` is a real user id
+- **every RLS policy applies exactly as it does in production**
+- writes are attributed to that account, not to nobody
+- **role restrictions are genuinely exercised** — sign in as an `operations`
+  account and you will correctly be unable to delete
+
+This is the right mode for testing the workflow. Nothing about the database is
+weakened; you have simply skipped typing the password into a form.
+
+## Mode B — the service key. Bootstrap only.
+
+For before any account exists.
 
 ```
-NEXT_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+DEV_AUTH_BYPASS=true
 SUPABASE_SERVICE_ROLE_KEY=eyJ...
-DEV_AUTH_BYPASS=true
 ```
 
-Then restart the dev server. Next.js only reads that file at startup.
+The service key outranks RLS, so queries work. But **role restrictions are not
+exercised** — everything behaves as Super Admin whatever the real roles are.
+The banner turns red to say so.
+
+Use this to get in once, create an account at `/users`, then switch to Mode A.
+
+### Which mode is chosen
+
+Automatically: if `DEV_AUTH_EMAIL` and `DEV_AUTH_PASSWORD` are both set, Mode A.
+Otherwise, if the service key is set, Mode B. Otherwise an error naming both
+options. A real account always wins over the service key when both are present.
+
+---
+
+## Getting started
+
+**If you have no Supabase account yet**, start with Mode B, create yourself one
+at `/users`, then move to Mode A and delete the service key line.
+
+**If you do**, use Mode A. The service key is not needed for the bypass at all
+— though `/setup` and `/users` still need it to create logins.
 
 ```powershell
+cd C:\Users\HP\Downloads\greenfind
+npm.cmd install
+# edit .env.local
 npm.cmd run dev
 ```
 
-Open `http://localhost:3000`. You go straight to the vendor list, with a yellow
-banner across the top saying the bypass is on.
+**Restart after editing `.env.local`.** Next.js reads it once, at startup. This
+catches everyone.
 
 ## Turning it off
 
-Delete the line, or set it to anything other than `true`. Restart the server.
-The login page returns. Nothing was removed.
+Delete `DEV_AUTH_BYPASS` from `.env.local`, or set it to anything but `true`.
+Restart. The login page returns. Nothing was removed.
 
 ---
 
-## Why the service key is needed
-
-This is the part worth understanding, because it is not obvious.
-
-Every row-level security policy asks `auth.uid()` — who is making this request.
-With the login bypassed there is no session, so `auth.uid()` is null, `my_role()`
-returns null, and **every policy denies**. You would get a working interface
-showing zero vendors, and every save would fail.
-
-So when the bypass is on, the server uses the **service role key**, which
-outranks RLS.
-
-What that does and does not mean:
-
-- RLS is **not disabled**. Every policy is still there and still applies to the
-  deployed application.
-- The key is used **only on the server**, in `lib/supabase/server.ts`. It is
-  never sent to a browser.
-- It is already in your `.env.local` for `/setup` and `/users`, so nothing new
-  is being exposed.
-- Because the service key outranks the policies, **role restrictions are not
-  being exercised while the bypass is on**. The session behaves as a Super
-  Admin. Test role behaviour with real accounts.
-
----
-
-## What was changed
+## Files changed
 
 | File | Change |
 |---|---|
-| `lib/devAuth.ts` | **New.** The one place that decides whether the bypass is active, and the fake profile it runs as |
-| `lib/supabase/server.ts` | `createClient()` returns a service-key client when bypassed. `getMe()` returns the dev profile instead of reading a session |
-| `middleware.ts` | Skips the session check when bypassed, and sends `/login` and `/setup` to `/vendors` |
-| `app/(app)/layout.tsx` | Shows the banner; hides Sign out, which is meaningless with no session |
-| `app/(app)/DevBanner.tsx` | **New.** The banner. Renders nothing when the bypass is off |
-| `tests/devAuth.spec.ts` | **New.** Asserts the bypass cannot activate in production or on Vercel |
+| `lib/devAuth.ts` | The guard, the mode selection and the status line |
+| `lib/supabase/devSession.ts` | **New.** Signs in as a real account, caches the client |
+| `lib/supabase/server.ts` | `createClient()` picks a mode; `getMe()` reads the real profile in Mode A |
+| `middleware.ts` | Skips the session check when bypassed; `/login` and `/setup` go to `/vendors` |
+| `app/(app)/layout.tsx` | Shows the banner, hides Sign out |
+| `app/(app)/DevBanner.tsx` | Banner; amber in Mode A, red in Mode B |
+| `tests/devAuth.spec.ts` | Asserts the guard and the mode selection |
 
-Nothing else was touched. No schema change, no RLS change, no change to any
-form, save path or page.
+No schema change. No RLS change. No change to any form, save path or page.
 
-## How the guard works
+## The guard
 
 ```ts
 export const DEV_AUTH_BYPASS =
@@ -90,46 +113,25 @@ export const DEV_AUTH_BYPASS =
   process.env.DEV_AUTH_BYPASS === 'true';    // deliberate opt-in
 ```
 
-The first two conditions are not configurable. Setting `DEV_AUTH_BYPASS=true`
-in Vercel's environment variables does nothing, because `VERCEL` is always set
-there and `NODE_ENV` is `production` in a build.
+The first two are not configurable. Setting the flag in Vercel does nothing.
+`'TRUE'`, `'1'` and `'yes'` do not count — only the exact string `'true'`.
 
-`'TRUE'`, `'1'` and `'yes'` do not count. Only the exact string `'true'`.
+## Removing it entirely, later
 
-## Restoring normal authentication
-
-Remove the line from `.env.local`. That is all.
-
-The login page, `/setup`, `/users`, the roles and the middleware are all intact
-and unmodified. When Supabase accounts are working, delete the line and
-everything behaves as before.
-
-If you want the bypass gone from the codebase entirely later: delete
-`lib/devAuth.ts`, `app/(app)/DevBanner.tsx` and `tests/devAuth.spec.ts`, then
-remove the `DEV_AUTH_BYPASS` branches from `middleware.ts`,
-`lib/supabase/server.ts` and `app/(app)/layout.tsx`. Each is a single guarded
-block with a comment.
+Delete `lib/devAuth.ts`, `lib/supabase/devSession.ts`, `app/(app)/DevBanner.tsx`
+and `tests/devAuth.spec.ts`, then remove the `DEV_AUTH_BYPASS` branches from
+`middleware.ts`, `lib/supabase/server.ts` and `app/(app)/layout.tsx`. Each is a
+single guarded block with a comment above it.
 
 ---
 
-## Commands
+## Environment variables
 
-```powershell
-cd C:\Users\HP\Downloads\greenfind
-
-npm.cmd install
-
-# add DEV_AUTH_BYPASS=true to .env.local, then
-
-npm.cmd run dev
-```
-
-If PowerShell refuses to run scripts, `npm.cmd` sidesteps it — which is why the
-commands above use it rather than `npm`. Alternatively use Command Prompt,
-where plain `npm` works.
-
-To check it builds before pushing:
-
-```powershell
-npm.cmd run build
-```
+| Name | Needed for | Reaches the browser? |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Always | Yes, by design |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Always | Yes, safe because RLS is on |
+| `DEV_AUTH_BYPASS` | The bypass | No |
+| `DEV_AUTH_EMAIL` | Mode A | No |
+| `DEV_AUTH_PASSWORD` | Mode A | No |
+| `SUPABASE_SERVICE_ROLE_KEY` | Mode B, and `/setup` and `/users` | **No. Never.** |

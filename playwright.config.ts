@@ -23,8 +23,11 @@ export default defineConfig({
 
   projects: [
     { name: 'setup', testMatch: /auth\.setup\.ts/ },
+    // Pure logic, no browser, no sign-in, no database.
+    { name: 'unit', testMatch: /.*\.unit\.spec\.ts/ },
     {
       name: 'chromium',
+      testIgnore: /.*\.unit\.spec\.ts/,
       use: { ...devices['Desktop Chrome'], storageState: 'tests/.auth/user.json' },
       dependencies: ['setup'],
     },

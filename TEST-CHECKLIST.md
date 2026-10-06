@@ -164,7 +164,30 @@ Open the site on your phone, or press F12 and switch to a narrow width.
 
 ---
 
-## 8. When something breaks
+## 8. Import
+
+Use the template from the import page, or any spreadsheet. Sign in as Operations.
+
+| | Check | Expected |
+|---|---|---|
+| ☐ | Vendors page | **Import** button next to Add vendor; not there for a `user` account |
+| ☐ | Open `/vendors/import` as a `user` account | Redirected away |
+| ☐ | Download the template | Three sheets; top row stays put when you scroll; pincode column is Text |
+| ☐ | Import the template's **Example** sheet | Two rows, no problems; the scruffy one is cleaned (Packing becomes Packaging, +91 removed) |
+| ☐ | Drop a file with oddly named columns ("GST No", "Company Name") | Matched automatically, each shows what it matched on |
+| ☐ | Change one match by hand | The other column using that field lets go of it |
+| ☐ | Check a file with a bad GSTIN | Row is **held back**, listed by spreadsheet row number |
+| ☐ | Check a file with a bad IFSC or mobile | Row still imports; value left blank; listed as fixable |
+| ☐ | Two rows, same PAN, different states | One company, two sites; "2 sites" on both rows |
+| ☐ | Import the same file twice | Second time: sites refused as already on record, nothing duplicated |
+| ☐ | A site under a PAN already on record | Attaches to that company; its details are not overwritten |
+| ☐ | Download the problem list | CSV opens in Excel with row, GSTIN, problem, outcome |
+| ☐ | Open an imported vendor | Banner or marker shows it was migrated; categories empty (not importable) |
+| ☐ | "Undo this import" on the finished screen | SQL lists only the codes this import created |
+
+---
+
+## 9. When something breaks
 
 **Write down:** the URL, what you clicked, what you expected, what happened,
 and the exact error text.
