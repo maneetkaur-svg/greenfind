@@ -6,6 +6,7 @@ const TYPE_LABEL: Record<string, string> = {
   text: 'Text', longtext: 'Text', number: 'Number', currency: 'Number (rupees)', bool: 'Yes / No',
   date: 'Date', enum: 'Pick one', gstin: 'Text, 15 characters', pan: 'Text, 10 characters',
   ifsc: 'Text, 11 characters', mobile: 'Text, 10 digits', email: 'Email', pincode: 'Text, 6 digits', list: 'List',
+  status: 'Pick one', credit: 'Days, or words', docref: 'Link or file name',
 };
 
 /** A template and an export must agree on headers. Both read IMPORT_FIELDS. */
@@ -59,12 +60,14 @@ export function buildTemplate(): XLSX.WorkBook {
     city: 'Pune', state: 'maharashtra', pincode: '410501', geography: 'West; Pan India', contact1_name: 'Anil Rao',
     contact1_mobile: '+91 98765-43210', contact1_email: 'anil@example.com', contact2_name: 'Meera Shah', contact2_mobile: '09123456780',
     bank_account_number: '50200012345678', ifsc: 'hdfc0000432', cheque_on_file: '✓',
+    legacy_code: 'V-0107', services_text: 'Corrugated boxes and packing', credit_period: '1 month', status: ' ONBOARDED ', created_date: '12/04/2025',
+    doc_pan: 'Yes', doc_cheque: 'cheque-raj.pdf',
   };
   const ws3 = XLSX.utils.aoa_to_sheet([
     headers, IMPORT_FIELDS.map((f: ImportField) => tidy[f.key]), IMPORT_FIELDS.map((f: ImportField) => scruffy[f.key]),
     [],
     ['Row 3 is deliberately untidy to show what is cleaned up: "Packing" becomes Packaging, "pvt ltd" becomes Private Limited, "Y" and "✓" become Yes, ' +
-     '"₹1,25,00,000" becomes a number, "+91 98765-43210" becomes 9876543210, lower-case GSTIN and IFSC are upper-cased. Do not leave the Example sheet selected when you import.'],
+     '"₹1,25,00,000" becomes a number, "+91 98765-43210" becomes 9876543210, lower-case GSTIN and IFSC are upper-cased, "1 month" becomes 30 days, "ONBOARDED" becomes Active, and 12/04/2025 is read as 12 April. Do not leave the Example sheet selected when you import.'],
   ]);
   ws3['!cols'] = headers.map(h => ({ wch: Math.max(16, h.length + 4) }));
   XLSX.utils.book_append_sheet(wb, ws3, 'Example');

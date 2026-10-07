@@ -47,7 +47,7 @@ test.describe('import', () => {
     await expect(page.getByText('Match the columns')).toBeVisible();
     await page.getByRole('button', { name: 'Check the data' }).click();
     await expect(page.getByTestId('stat-will-import')).toHaveText('2');
-    await expect(page.getByTestId('stat-held-back')).toHaveText('0');
+    await expect(page.getByTestId('stat-held-back-or-skipped')).toHaveText('0');
 
     await page.getByRole('button', { name: /^Import 2 rows$/ }).click();
     await expect(page.getByTestId('import-done')).toBeVisible({ timeout: 30_000 });
@@ -70,8 +70,34 @@ test.describe('import', () => {
     ])));
     await page.getByRole('button', { name: 'Check the data' }).click();
     await expect(page.getByTestId('stat-will-import')).toHaveText('1');
-    await expect(page.getByTestId('stat-held-back')).toHaveText('1');
-    await expect(page.getByText('GSTIN format wrong')).toBeVisible();
+    await expect(page.getByTestId('stat-held-back-or-skipped')).toHaveText('1');
+    await expect(page.getByText('No valid PAN or GSTIN')).toBeVisible();
     await expect(page.getByText('Rows: 3')).toBeVisible();           // the bad row, by its spreadsheet row number
+  });
+
+  test('a sheet in the legacy 17-column layout imports, with Aadhaar reduced to four digits', async ({ page }) => {
+    const pan = `${letters()}${digits()}${one()}`;
+    const name = `Playwright Legacy ${run}`;
+    const LEGACY = ['Vendor Code', 'Vendor Name', 'Services', 'Credit Period', 'GST / Aadhaar', 'PAN Number', 'Account Number', 'IFSC Code',
+      'Projects', 'MSME', 'Status', 'GST/Aadhaar Document', 'PAN Document', 'Agreement Document', 'Cancelled Cheque', 'MSME Document', 'Created Date'];
+    const row = (code: string, gst: string, services: string, status: string) =>
+      [code, name, services, '30', gst, pan, '', '', '', 'No', status, '', '', '', '', '', '15/03/2024'];
+    await page.goto('/vendors/import');
+    await page.getByTestId('import-file').setInputFiles(xlsxFile(workbook([
+      LEGACY,
+      row(`PW-${run}-1`, `27${pan}1Z${one()}`, 'PET bottle recycling', 'Active'),
+      row(`PW-${run}-2`, '234567890123', 'Local transport', 'Inactive'),            // Aadhaar, PAN present
+    ])));
+    await expect(page.getByText('Match the columns')).toBeVisible();
+    await expect(page.getByText('Not matched yet')).toHaveCount(0);                 // all 17 headings recognised
+    await page.getByRole('button', { name: 'Check the data' }).click();
+    await expect(page.getByTestId('stat-will-import')).toHaveText('2');
+    await expect(page.getByText('Aadhaar number found')).toBeVisible();
+    await expect(page.getByTestId('gaps')).toContainText('No address');
+    await expect(page.locator('body')).not.toContainText('234567890123');           // never echoed on screen
+    await page.getByRole('button', { name: /^Import 2 rows$/ }).click();
+    await expect(page.getByTestId('import-done')).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId('done-sites')).toHaveText('2');
+    await expect(page.getByTestId('done-companies')).toHaveText('1');
   });
 });

@@ -83,3 +83,10 @@ CI keeps a report. GitHub → the failed run → **Artifacts** → `playwright-r
 It has a screenshot, a video and a trace of the moment it failed.
 
 Locally, `npm run test:report` opens the same thing.
+
+## Added tests
+
+- `npm test` — everything. `npx playwright test --project=unit` — logic only, 3 seconds, no database.
+- `npm run preflight -- "file.xlsx"` — checks a real spreadsheet with no database.
+- `sql/tests/06_data_fit_test.sql` — database rules; run on STAGING in the Supabase SQL Editor. Rolls back.
+- `tests/dashboard.spec.ts`, `tests/import.spec.ts` — browser tests; they write rows to whatever database the app points at.

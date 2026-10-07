@@ -176,7 +176,7 @@ Use the template from the import page, or any spreadsheet. Sign in as Operations
 | ☐ | Import the template's **Example** sheet | Two rows, no problems; the scruffy one is cleaned (Packing becomes Packaging, +91 removed) |
 | ☐ | Drop a file with oddly named columns ("GST No", "Company Name") | Matched automatically, each shows what it matched on |
 | ☐ | Change one match by hand | The other column using that field lets go of it |
-| ☐ | Check a file with a bad GSTIN | Row is **held back**, listed by spreadsheet row number |
+| ☐ | Check a file with a bad GSTIN **and no PAN** | Row is **held back**, listed by spreadsheet row number |
 | ☐ | Check a file with a bad IFSC or mobile | Row still imports; value left blank; listed as fixable |
 | ☐ | Two rows, same PAN, different states | One company, two sites; "2 sites" on both rows |
 | ☐ | Import the same file twice | Second time: sites refused as already on record, nothing duplicated |
@@ -187,7 +187,40 @@ Use the template from the import page, or any spreadsheet. Sign in as Operations
 
 ---
 
-## 9. When something breaks
+## 9. Legacy data upload
+
+Run `npm run preflight -- "your-file.xlsx"` first; it checks the file with no database at all.
+Do the first real upload on **staging** (the dev address), never straight into production.
+
+| | Check | Expected |
+|---|---|---|
+| ☐ | Import `greenfind-legacy-TEST-FILE.xlsx` | All 17 headings matched, no "Not matched yet" warning |
+| ☐ | Check screen | 11 rows · 3 clean · 8 will import · 3 held or skipped |
+| ☐ | "What will be blank after import" | Lists no address, no pincode, no contact person, no bank details |
+| ☐ | Aadhaar row (row 5) | "Aadhaar number found"; the full number is **not shown anywhere** |
+| ☐ | Download the problem list | Row 6 says "No valid PAN or GSTIN" and does **not** contain the number |
+| ☐ | Import | 8 sites, 7 new companies |
+| ☐ | Open "ZZ LEGACY Aadhaar Proprietor" | No GSTIN, no address, **no error**; "Still to fill in" note; Status tab shows Aadhaar last four only |
+| ☐ | Open "ZZ LEGACY Mixed Services" | Shows Unclassified; setting an industry in the Site tab then adds the Operations tab |
+| ☐ | Documents tab of "ZZ LEGACY Clean Recyclers" | A note lists the old document references (gst.pdf …); upload still works below it |
+| ☐ | Commercial tab of the same vendor | Credit period 45 days |
+| ☐ | Import the same file again | Everything is held or skipped; Import button disabled |
+
+## 10. Dashboard
+
+| | Check | Expected |
+|---|---|---|
+| ☐ | Vendors page, desktop | Small card in the **top right**; not a banner; the list below is full width |
+| ☐ | After the legacy test import | **3** onboarded · 7 on record · Recycling 1/2 · Packaging 2 · Transportation 0/2 · Unclassified 0/1 |
+| ☐ | Click "Recycling" | List filters to recycling |
+| ☐ | Click "Unclassified" | Only vendors with no industry |
+| ☐ | Change one vendor's status to Active | Dashboard count goes up by one after reload |
+| ☐ | Phone width | Card stacks above the list, still readable |
+| ☐ | Signed out, open `/rest/v1/site_summary` with only the public key | **Refused** (this was open before `06_data_fit.sql`) |
+
+---
+
+## 11. When something breaks
 
 **Write down:** the URL, what you clicked, what you expected, what happened,
 and the exact error text.

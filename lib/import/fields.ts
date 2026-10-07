@@ -4,7 +4,8 @@
 
 export type ImportType =
   | 'text' | 'longtext' | 'number' | 'currency' | 'bool' | 'date'
-  | 'enum' | 'gstin' | 'pan' | 'ifsc' | 'mobile' | 'email' | 'pincode' | 'list';
+  | 'enum' | 'gstin' | 'pan' | 'ifsc' | 'mobile' | 'email' | 'pincode' | 'list'
+  | 'status' | 'credit' | 'docref';
 
 export type ImportField = {
   key: string;                       // internal key; also the template header's meaning
@@ -61,7 +62,8 @@ export const IMPORT_FIELDS: ImportField[] = [
     note: 'Needed for Private Limited, Public Limited and LLP.', example: 'U37200RJ2016PTC054321' },
   { key: 'is_msme', header: 'MSME', table: 'company', type: 'bool', required: false,
     aliases: ['msme', 'msme?', 'is msme', 'msme registered', 'registered as msme', 'registered as an msme'],
-    allowed: 'Yes or No (Y, TRUE, 1 also work)', example: 'Yes' },
+    allowed: 'Yes or No (Y, TRUE, 1 also work). A Udyam number in this column is also understood.',
+    example: 'Yes' },
   { key: 'msme_category', header: 'MSME category', table: 'company', type: 'enum', required: false,
     aliases: ['msme category', 'enterprise category', 'enterprise type', 'msme type'],
     allowed: 'Micro, Small, Medium', note: 'Only when MSME is Yes.', example: 'Small' },
@@ -96,7 +98,7 @@ export const IMPORT_FIELDS: ImportField[] = [
   { key: 'bank_branch', header: 'Bank and branch', table: 'company', type: 'text', required: false,
     aliases: ['bank and branch', 'bank branch', 'bank name', 'bank name and branch', 'branch', 'bank'], example: 'HDFC Bank, Alwar' },
   { key: 'cheque_on_file', header: 'Cancelled cheque on file', table: 'company', type: 'bool', required: false,
-    aliases: ['cancelled cheque on file', 'cancelled cheque', 'cheque on file', 'cheque received'], example: 'Yes' },
+    aliases: ['cancelled cheque on file', 'cheque on file', 'cheque received'], example: 'Yes' },
   { key: 'authorised_signatory', header: 'Authorised signatory', table: 'company', type: 'text', required: false,
     aliases: ['authorised signatory', 'authorized signatory', 'signatory', 'signing authority', 'name of signatory'], example: 'Ramesh Gupta' },
   { key: 'nda_status', header: 'NDA status', table: 'company', type: 'enum', required: false,
@@ -105,12 +107,17 @@ export const IMPORT_FIELDS: ImportField[] = [
     aliases: ['nda signed date', 'nda date', 'date of nda'], allowed: 'DD/MM/YYYY or YYYY-MM-DD', example: '2026-09-15' },
 
   // ---- site ----
-  { key: 'gstin', header: 'GSTIN', table: 'vendor_site', type: 'gstin', required: true, excelText: true,
-    aliases: ['gstin', 'gst no', 'gst number', 'gstin number', 'gst', 'gstin no', 'gst in', 'gst registration number', 'gstin/uin'],
-    note: 'The one column everything hangs off. Fifteen characters.', example: '08AYEPP3943P1ZK' },
-  { key: 'industry', header: 'Industry', table: 'vendor_site', type: 'enum', required: true,
+  { key: 'gstin', header: 'GSTIN', table: 'vendor_site', type: 'gstin', required: false, excelText: true,
+    aliases: ['gstin', 'gst no', 'gst number', 'gstin number', 'gst', 'gstin no', 'gst in', 'gst registration number', 'gstin/uin',
+              'gst aadhaar', 'gst aadhar', 'gstin aadhaar', 'gst aadhaar number', 'gst aadhaar no', 'gstin aadhaar number'],
+    allowed: 'GSTIN, 15 characters. A 12-digit Aadhaar number is also understood; only its last four digits are kept.',
+    note: 'A GSTIN or a PAN is needed so the row can be matched to a company. The PAN is taken from the GSTIN.',
+    example: '08AYEPP3943P1ZK' },
+  { key: 'industry', header: 'Industry', table: 'vendor_site', type: 'enum', required: false,
     aliases: ['industry', 'industry type', 'sector', 'vendor type', 'category of vendor', 'business type', 'vertical'],
-    allowed: 'Recycling, Packaging, Transportation (Logistics, Circularity, Packing also understood)', example: 'Recycling' },
+    allowed: 'Recycling, Packaging, Transportation (Logistics, Circularity, Packing also understood)',
+    note: 'Optional. If blank it is worked out from Services; if that is unclear the vendor is left Unclassified.',
+    example: 'Recycling' },
   { key: 'site_name', header: 'Site name', table: 'vendor_site', type: 'text', required: false,
     aliases: ['site name', 'plant name', 'unit name', 'location name', 'unit'], example: 'Khushkhera Unit' },
   { key: 'address_line1', header: 'Address', table: 'vendor_site', type: 'text', required: false,
@@ -127,6 +134,40 @@ export const IMPORT_FIELDS: ImportField[] = [
   { key: 'geography', header: 'Serviceable states', table: 'geography', type: 'list', required: false,
     aliases: ['serviceable states', 'serviceable geography', 'geography', 'states served', 'areas served', 'service area', 'coverage', 'regions served'],
     allowed: 'States separated by semicolon, or Pan India', example: 'Rajasthan; Gujarat; Haryana' },
+
+  // ---- fields that came with the legacy vendor sheet ----
+  { key: 'legacy_code', header: 'Vendor code', table: 'vendor_site', type: 'text', required: false,
+    aliases: ['vendor code', 'legacy code', 'vendor id', 'supplier code', 'code', 'vendor no', 'vendor number', 'old vendor code', 'vendor code old'],
+    note: 'The code the old system used. Kept for search and so a re-import is recognised. Must be unique.', example: 'V-0042' },
+  { key: 'services_text', header: 'Services', table: 'vendor_site', type: 'longtext', required: false,
+    aliases: ['services', 'service', 'services offered', 'scope of services', 'scope', 'type of service', 'service type', 'nature of services'],
+    note: 'Free text. Also used to work out the industry when the Industry column is blank.', example: 'PET bottle recycling; EPR' },
+  { key: 'credit_period', header: 'Credit period', table: 'company', type: 'credit', required: false,
+    aliases: ['credit period', 'credit days', 'payment terms', 'credit period (days)', 'credit', 'payment days'],
+    allowed: 'A number of days (30, "45 days", "1 month"). Words like Advance or Immediate become 0 days and the wording is kept as a note.',
+    example: '45' },
+  { key: 'projects_text', header: 'Projects', table: 'vendor_site', type: 'longtext', required: false,
+    aliases: ['projects', 'project', 'project name', 'project names', 'client projects', 'linked projects'],
+    note: 'Free text, kept as written.', example: 'Reliance EPR 2025' },
+  { key: 'status', header: 'Status', table: 'vendor_site', type: 'status', required: false,
+    aliases: ['status', 'vendor status', 'current status', 'active status', 'onboarding status'],
+    allowed: 'Active, Inactive, Pending, Blocked (Approved, Onboarded, Disabled, Blacklisted, Rejected, Draft and similar are understood)',
+    note: 'A blank or unrecognised status is set to Pending, never Active, so the onboarded count is never overstated.', example: 'Active' },
+  { key: 'created_date', header: 'Created date', table: 'company', type: 'date', required: false,
+    aliases: ['created date', 'created on', 'date created', 'creation date', 'onboarded on', 'onboarding date', 'date of onboarding', 'created at'],
+    allowed: 'DD/MM/YYYY or YYYY-MM-DD. A date in the future is ignored.', note: 'Keeps the original onboarding date on the record.', example: '2025-04-12' },
+  { key: 'doc_gst', header: 'GST / Aadhaar document', table: 'vendor_site', type: 'docref', required: false,
+    aliases: ['gst / aadhaar document', 'gst aadhaar document', 'gst document', 'gst certificate', 'gst doc', 'aadhaar document', 'gst/aadhaar doc'],
+    note: 'A link or file name from the old system. Files cannot travel in a spreadsheet, so this is a reminder of what must be uploaded.', example: 'gst-cert.pdf' },
+  { key: 'doc_pan', header: 'PAN document', table: 'vendor_site', type: 'docref', required: false,
+    aliases: ['pan document', 'pan card document', 'pan doc', 'pan copy', 'pan card copy'], example: 'pan.pdf' },
+  { key: 'doc_agreement', header: 'Agreement document', table: 'vendor_site', type: 'docref', required: false,
+    aliases: ['agreement document', 'agreement', 'agreement doc', 'nda document', 'contract document', 'agreement copy'], example: 'agreement.pdf' },
+  { key: 'doc_cheque', header: 'Cancelled cheque', table: 'vendor_site', type: 'docref', required: false,
+    aliases: ['cancelled cheque', 'cancelled cheque document', 'cheque document', 'cancelled cheque copy', 'cheque copy'],
+    note: 'If this has a value, the company is marked "cancelled cheque on file".', example: 'cheque.pdf' },
+  { key: 'doc_msme', header: 'MSME document', table: 'vendor_site', type: 'docref', required: false,
+    aliases: ['msme document', 'udyam document', 'msme certificate', 'udyam certificate', 'msme doc', 'udyam certificate document'], example: 'udyam.pdf' },
 
   ...contactFields(1, 'Primary contact'),
   ...contactFields(2, 'Secondary contact'),

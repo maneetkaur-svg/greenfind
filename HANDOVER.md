@@ -278,3 +278,18 @@ What to be sceptical of:
 - Any suggestion to turn off row-level security or put the service key in the
   browser
 - Deleting rows from reference tables rather than upserting
+
+
+---
+
+## 11. Added since: legacy data, dashboard, branches
+
+- **Database order is now** `01_schema.sql`, `02_security.sql`, `03_reference_data.sql`, `06_data_fit.sql`,
+  `07_import_function.sql` (the SQL now lives in `sql/`; see `sql/README.md`).
+- **`06_data_fit.sql` also closes a leak**: the views `site_summary` and `expiring_documents` ran with their
+  owner's rights, so the public (anon) key could read vendor names, PANs and GSTINs through them even though the
+  tables refused. They are now `security_invoker` and revoked from `anon`.
+- **Imported vendors may be incomplete** ("required, unless migrated"). See `DATA-FIT.md`.
+- **Aadhaar numbers are never stored in full** — last four digits only.
+- **Branches:** work on `dev` (staging database), release to `prod` by pull request. See `BRANCHING.md`.
+- **Before any real upload:** `npm run preflight -- "file.xlsx"`.

@@ -107,10 +107,20 @@ test.describe('row checks', () => {
     expect(r.contacts[0].mobile).toBe('9876543210');
   });
 
-  test('bad GSTIN is blocking', () => {
+  test('a bad GSTIN with nothing else to identify the company is held back', () => {
     const r = parseRow(good({ 'GST No': '08AYEPP3943' }), mapping, 2);
-    expect(r.problems.map(p => p.code)).toContain('gstin_format');
-    expect(r.problems.find(p => p.code === 'gstin_format')!.severity).toBe('blocking');
+    const p = r.problems.find(x => x.code === 'no_identity')!;
+    expect(p.severity).toBe('blocking');
+    expect(r.problems.map(x => x.code)).not.toContain('gstin_format');   // one root cause, reported once
+  });
+
+  test('a bad GSTIN with a good PAN imports, GSTIN left blank', () => {
+    const h = [...HEAD, 'PAN']; const m = mapFor(h);
+    const r = parseRow([...good({ 'GST No': '08AYEPP3943' }), 'AYEPP3943P'], m, 2);
+    expect(r.problems.map(x => x.code)).toEqual(['gstin_format']);
+    expect(r.problems[0].severity).toBe('fixable');
+    expect(r.pan).toBe('AYEPP3943P');
+    expect(r.site.gstin).toBeUndefined();
   });
 
   test('bad optional values are dropped and flagged, row still importable', () => {
@@ -121,13 +131,16 @@ test.describe('row checks', () => {
     expect(r.contacts[0].mobile).toBe('');
   });
 
-  test('MSME yes with no Udyam is flagged', () => {
+  test('MSME yes with no Udyam is flagged but still imports (migrated records may be incomplete)', () => {
     const r = parseRow(good({ 'MSME?': 'Y' }), mapping, 2);
-    expect(r.problems.map(p => p.code)).toContain('msme_no_udyam');
+    const p = r.problems.find(x => x.code === 'msme_no_udyam')!;
+    expect(p.severity).toBe('fixable');
   });
 
-  test('no industry is flagged', () => {
-    expect(parseRow(good({ Industry: '' }), mapping, 2).problems.map(p => p.code)).toContain('no_industry');
+  test('no industry is flagged, and the row still imports unclassified', () => {
+    const r = parseRow(good({ Industry: '' }), mapping, 2);
+    expect(r.problems.find(p => p.code === 'no_industry')!.severity).toBe('fixable');
+    expect(r.site.industry).toBeUndefined();
   });
 
   test('PAN column that disagrees with the GSTIN is flagged', () => {
@@ -138,7 +151,7 @@ test.describe('row checks', () => {
 
   test('duplicate in file and already in system', () => {
     const rows = [parseRow(good(), mapping, 2), parseRow(good(), mapping, 3), parseRow(good({ 'GST No': '27ABCDE1234F1Z5' }), mapping, 4)];
-    const c = checkFile(rows, new Set(['27ABCDE1234F1Z5|301707']));
+    const c = checkFile(rows, new Set(['G:27ABCDE1234F1Z5|301707']));
     const codes = c.byProblem.map(b => b.code);
     expect(codes).toContain('duplicate_in_file');
     expect(codes).toContain('already_in_system');
@@ -274,5 +287,190 @@ test.describe('schema-driven rules', () => {
   test('MSME left blank is not recorded as No, so a later row can still supply it', () => {
     const r = parseRow(good({ 'MSME?': '' }), mapping, 2);
     expect(r.company.is_msme).toBeUndefined();
+  });
+});
+
+/* ===================== the legacy vendor sheet: the client's exact 17 columns ===================== */
+const LEGACY = ['Vendor Code', 'Vendor Name', 'Services', 'Credit Period', 'GST / Aadhaar', 'PAN Number', 'Account Number', 'IFSC Code',
+  'Projects', 'MSME', 'Status', 'GST/Aadhaar Document', 'PAN Document', 'Agreement Document', 'Cancelled Cheque', 'MSME Document', 'Created Date'];
+const legacyRow = (o: Record<string, unknown> = {}) => {
+  const base: Record<string, unknown> = {
+    'Vendor Code': 'V-001', 'Vendor Name': 'ZZ Legacy Recyclers', 'Services': 'PET bottle recycling', 'Credit Period': '45 days',
+    'GST / Aadhaar': '08AYEPP3943P1ZK', 'PAN Number': 'AYEPP3943P', 'Account Number': '50200012345678', 'IFSC Code': 'HDFC0000432',
+    'Projects': 'Reliance EPR', 'MSME': 'No', 'Status': 'Active', 'GST/Aadhaar Document': 'gst.pdf', 'PAN Document': 'pan.pdf',
+    'Agreement Document': 'agr.pdf', 'Cancelled Cheque': 'chq.pdf', 'MSME Document': '', 'Created Date': '15/03/2024', ...o,
+  };
+  return LEGACY.map(h => base[h] ?? '');
+};
+const legacyMap = mapFor(LEGACY);
+const legacyParse = (o: Record<string, unknown> = {}, n = 2) => parseRow(legacyRow(o), legacyMap, n);
+
+test.describe('legacy sheet: columns', () => {
+  test('all 17 headings are recognised, each as the right field', () => {
+    const want: Record<string, string> = {
+      'Vendor Code': 'legacy_code', 'Vendor Name': 'legal_name', 'Services': 'services_text', 'Credit Period': 'credit_period',
+      'GST / Aadhaar': 'gstin', 'PAN Number': 'pan', 'Account Number': 'bank_account_number', 'IFSC Code': 'ifsc', 'Projects': 'projects_text',
+      'MSME': 'is_msme', 'Status': 'status', 'GST/Aadhaar Document': 'doc_gst', 'PAN Document': 'doc_pan', 'Agreement Document': 'doc_agreement',
+      'Cancelled Cheque': 'doc_cheque', 'MSME Document': 'doc_msme', 'Created Date': 'created_date',
+    };
+    const got = matchHeaders(LEGACY);
+    for (const c of got) expect(c.key, c.header).toBe(want[c.header]);
+    expect(new Set(got.map(c => c.key)).size).toBe(17);
+  });
+
+  test('a full legacy row imports clean, with no address, state or contact required', () => {
+    const r = legacyParse();
+    expect(r.problems).toEqual([]);
+    expect(r.pan).toBe('AYEPP3943P');
+    expect(r.site.state).toBe('Rajasthan');                      // from the GSTIN
+    expect(r.site.industry).toBe('recycling');                   // from Services
+    expect(r.industryDerived).toBe(true);
+    expect(r.site.status).toBe('active');
+    expect(r.site.legacy_vendor_code).toBe('V-001');
+    expect(r.company.credit_period_days).toBe(45);
+    expect(r.company.created_at).toBe('2024-03-15');
+    expect(r.company.cheque_on_file).toBe(true);                 // a cheque reference means one is on file
+    expect(r.site.legacy_documents).toEqual({ gst: 'gst.pdf', pan: 'pan.pdf', agreement: 'agr.pdf', cheque: 'chq.pdf' });
+    expect(r.site.address_line1).toBeUndefined();
+  });
+
+  test('legacy rows report what will be blank as a summary, not as per-row problems', () => {
+    const c = checkFile([legacyParse({}, 2), legacyParse({ 'Vendor Code': 'V-002', 'GST / Aadhaar': '24AYEPP3943P1ZB' }, 3)]);
+    expect(c.rows.every(r => r.problems.length === 0)).toBe(true);
+    const labels = c.gaps.map(g => g.label);
+    expect(labels).toEqual(expect.arrayContaining(['No address', 'No pincode', 'No contact person']));
+    expect(c.gaps.find(g => g.label === 'No address')!.rows).toBe(2);
+    expect(c.industryDerived).toBe(2);
+  });
+});
+
+test.describe('legacy sheet: GST / Aadhaar', () => {
+  const AADHAAR = '234567890123';
+  const everything = (r: ReturnType<typeof legacyParse>) => JSON.stringify(r);
+
+  test('an Aadhaar number keeps only its last four digits — and the full number appears nowhere', () => {
+    const r = legacyParse({ 'GST / Aadhaar': AADHAAR });
+    expect(r.site.aadhaar_last4).toBe('0123');
+    expect(r.site.gstin).toBeUndefined();
+    expect(r.gstin).toBe('');
+    expect(r.problems.map(p => p.code)).toEqual(['aadhaar_masked']);
+    expect(everything(r)).not.toContain(AADHAAR);
+    expect(r.problems.every(p => p.severity === 'fixable')).toBe(true);
+  });
+  test('Aadhaar with spaces, as a number, as Excel scientific notation, or already masked', () => {
+    for (const v of ['2345 6789 0123', 234567890123, '2.34567890123E+11', 'XXXXXXXX0123']) {
+      const r = legacyParse({ 'GST / Aadhaar': v });
+      expect(r.site.aadhaar_last4, String(v)).toBe('0123');
+      expect(everything(r), String(v)).not.toContain(AADHAAR);
+    }
+  });
+  test('an Aadhaar vendor with no PAN is held back, and the message does not echo the number', () => {
+    const r = legacyParse({ 'GST / Aadhaar': AADHAAR, 'PAN Number': '' });
+    expect(r.problems.map(p => p.code)).toEqual(['no_identity']);
+    expect(r.problems[0].severity).toBe('blocking');
+    expect(everything(r)).not.toContain(AADHAAR);
+  });
+  test('a long number that is not an Aadhaar is described, not echoed', () => {
+    const r = legacyParse({ 'GST / Aadhaar': '99887766554433', 'PAN Number': '' });
+    expect(r.problems[0].message).toContain('14 digits');
+    expect(r.problems[0].message).not.toContain('99887766554433');
+  });
+  test('a valid PAN lets a vendor with no GSTIN at all import', () => {
+    const r = legacyParse({ 'GST / Aadhaar': '' });
+    expect(r.problems).toEqual([]);
+    expect(r.pan).toBe('AYEPP3943P');
+    expect(r.site.gstin).toBeUndefined();
+    expect(r.site.state).toBeUndefined();
+  });
+  test('PAN column disagreeing with the GSTIN is still a conflict', () => {
+    expect(legacyParse({ 'PAN Number': 'ABCDE1234F' }).problems.map(p => p.code)).toContain('pan_mismatch');
+  });
+});
+
+test.describe('legacy sheet: status, credit period, MSME, industry, dates', () => {
+  test('status words are understood; blank and unknown become Pending, never Active; only unknown is flagged', () => {
+    const cases: [string, string][] = [['Approved', 'active'], ['ONBOARDED', 'active'], ['Inactive', 'inactive'], ['Blacklisted', 'blocked'],
+      ['Draft', 'pending'], ['In Process', 'pending']];
+    for (const [v, want] of cases) { const r = legacyParse({ Status: v }); expect(r.site.status, v).toBe(want); expect(r.problems).toEqual([]); }
+    const odd = legacyParse({ Status: 'weird thing' });
+    expect(odd.site.status).toBe('pending');
+    expect(odd.problems.map(p => p.code)).toEqual(['status']);
+    const blank = legacyParse({ Status: '' });
+    expect(blank.site.status).toBe('pending');
+    expect(blank.problems).toEqual([]);                       // not noise on every row
+    expect(blank.statusBlank).toBe(true);
+    expect(checkFile([blank]).gaps.map(g => g.label)).toContain('No status given (set to Pending)');
+  });
+  test('credit period: days, months, words, and what cannot be understood', () => {
+    expect(legacyParse({ 'Credit Period': '30' }).company.credit_period_days).toBe(30);
+    expect(legacyParse({ 'Credit Period': 60 }).company.credit_period_days).toBe(60);
+    expect(legacyParse({ 'Credit Period': '2 months' }).company.credit_period_days).toBe(60);
+    const adv = legacyParse({ 'Credit Period': 'Advance' });
+    expect(adv.company.credit_period_days).toBe(0); expect(adv.company.credit_period_note).toBe('Advance'); expect(adv.problems).toEqual([]);
+    const odd = legacyParse({ 'Credit Period': '30-45 days' });
+    expect(odd.company.credit_period_days).toBeUndefined(); expect(odd.company.credit_period_note).toBe('30-45 days');
+    expect(odd.problems.map(p => p.code)).toEqual(['credit_period']);
+    expect(legacyParse({ 'Credit Period': '500' }).company.credit_period_days).toBeUndefined();   // over 365: kept as a note
+  });
+  test('the MSME column may hold Yes/No, a Udyam number, or a category', () => {
+    expect(legacyParse({ MSME: 'No' }).company.is_msme).toBe(false);
+    const udyam = legacyParse({ MSME: 'UDYAM-RJ-02-0041178' });
+    expect(udyam.company.is_msme).toBe(true); expect(udyam.company.udyam_number).toBe('UDYAM-RJ-02-0041178');
+    expect(udyam.problems.map(p => p.code)).toEqual(['msme_no_udyam']);                 // category still missing
+    const yes = legacyParse({ MSME: 'Yes' });
+    expect(yes.problems.map(p => p.code)).toEqual(['msme_no_udyam']);
+    expect(yes.problems[0].severity).toBe('fixable');
+    expect(legacyParse({ MSME: 'Small' }).company.msme_category).toBe('small');
+  });
+  test('industry is worked out from Services; ambiguous or unknown stays unclassified', () => {
+    const cases: [string, string | undefined][] = [
+      ['PET bottle recycling', 'recycling'], ['E-waste and EPR compliance', 'recycling'],
+      ['Corrugated boxes and pallets', 'packaging'], ['FTL and PTL logistics', 'transportation'],
+      ['Recycling and packaging', undefined], ['Legal consulting', undefined], ['', undefined]];
+    for (const [svc, want] of cases) {
+      const r = legacyParse({ Services: svc });
+      expect(r.site.industry, svc).toBe(want);
+      if (!want) expect(r.problems.map(p => p.code), svc).toContain('no_industry');
+    }
+    expect(legacyParse({ Services: 'Recycling and packaging' }).problems[0].message).toContain('more than one');
+  });
+  test('created date: DD/MM/YYYY, an Excel serial, a Date; a future date is ignored', () => {
+    expect(legacyParse({ 'Created Date': '15/03/2024' }).company.created_at).toBe('2024-03-15');
+    expect(legacyParse({ 'Created Date': 45000 }).company.created_at).toBe('2023-03-15');
+    expect(legacyParse({ 'Created Date': new Date('2023-01-09T00:00:00Z') }).company.created_at).toBe('2023-01-09');
+    const fut = legacyParse({ 'Created Date': '01/01/2999' });
+    expect(fut.company.created_at).toBeUndefined(); expect(fut.problems.map(p => p.code)).toEqual(['date']);
+  });
+  test('document columns keep real references and drop No / blank', () => {
+    const r = legacyParse({ 'GST/Aadhaar Document': 'No', 'PAN Document': 'N/A', 'Agreement Document': '', 'Cancelled Cheque': '', 'MSME Document': 'https://x.example/u.pdf' });
+    expect(r.site.legacy_documents).toEqual({ msme: 'https://x.example/u.pdf' });
+    expect(r.company.cheque_on_file).toBeUndefined();
+  });
+});
+
+test.describe('legacy sheet: duplicates and grouping', () => {
+  test('the same vendor code twice, or already on record, is held', () => {
+    const a = legacyParse({}, 2), b = legacyParse({ 'GST / Aadhaar': '24AYEPP3943P1ZB' }, 3);          // same V-001
+    const c = checkFile([a, b], new Set(['L:V-777']));
+    expect(c.byProblem.find(p => p.code === 'duplicate_in_file')!.rows).toEqual([3]);
+    const d = checkFile([legacyParse({ 'Vendor Code': 'V-777' }, 2)], new Set(['L:V-777']));
+    expect(d.byProblem.map(p => p.code)).toEqual(['already_in_system']);
+  });
+  test('two vendor codes sharing one GSTIN and no pincode are two sites, not duplicates', () => {
+    const c = checkFile([legacyParse({ 'Vendor Code': 'V-1' }, 2), legacyParse({ 'Vendor Code': 'V-2' }, 3)]);
+    expect(c.held).toBe(0);
+    const plan = buildPlan(c.rows);
+    expect(plan.companies).toHaveLength(1);
+    expect(plan.companies[0].sites).toHaveLength(2);
+  });
+  test('two rows with no vendor code and the same GSTIN and no pincode are the same vendor', () => {
+    const c = checkFile([legacyParse({ 'Vendor Code': '' }, 2), legacyParse({ 'Vendor Code': '' }, 3)]);
+    expect(c.byProblem.map(p => p.code)).toEqual(['duplicate_in_file']);
+  });
+  test('vendors with no GSTIN and different codes under one PAN are one company, two sites', () => {
+    const c = checkFile([legacyParse({ 'Vendor Code': 'V-1', 'GST / Aadhaar': '' }, 2), legacyParse({ 'Vendor Code': 'V-2', 'GST / Aadhaar': '234567890123' }, 3)]);
+    const plan = buildPlan(c.rows);
+    expect(plan.companies).toHaveLength(1);
+    expect(plan.companies[0].sites).toHaveLength(2);
   });
 });

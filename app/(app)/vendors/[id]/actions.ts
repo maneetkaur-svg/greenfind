@@ -42,8 +42,13 @@ export async function saveSection(
   // The same checks the database enforces, reported in plain words first.
   if (section.id === 'identity') {
     if (!values.legal_name) return { error: 'Legal name cannot be empty.' };
-    if (values.is_msme === true && (!values.msme_category || !values.udyam_number))
-      return { error: 'An MSME needs both an enterprise category and a Udyam number.' };
+    if (values.is_msme === true && (!values.msme_category || !values.udyam_number)) {
+      // A vendor imported from the old portal may only say "MSME: Yes". New vendors may not.
+      const { data: co } = await (await createClient()).from('company')
+        .select('migrated_from_portal').eq('id', companyId).maybeSingle();
+      if (!co?.migrated_from_portal)
+        return { error: 'An MSME needs both an enterprise category and a Udyam number.' };
+    }
     if (values.is_msme !== true) { values.msme_category = null; values.udyam_number = null; }
     const y = values.year_established as number | null;
     if (y !== null && (y < 1900 || y > new Date().getFullYear()))
@@ -77,7 +82,13 @@ export async function saveSection(
       .upsert({ site_id: siteId, ...values }, { onConflict: 'site_id' }));
   }
 
-  if (error) return { error: error.message };
+  if (error) {
+    if (error.message.includes('required_unless_migrated'))
+      return { error: 'GSTIN, industry, address, city, state and pincode are all required for a vendor created in this app. Fill in every one.' };
+    if (error.message.includes('msme_complete'))
+      return { error: 'An MSME needs both an enterprise category and a Udyam number.' };
+    return { error: error.message };
+  }
   revalidatePath(`/vendors/${siteId}`);
   revalidatePath('/vendors');
   return { ok: 'Saved.' };

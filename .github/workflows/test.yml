@@ -1,11 +1,15 @@
 name: Tests
 
-# Runs on every push and every pull request. A red tick here means
-# something that used to work has stopped working.
+# Runs on every push to dev or prod, and on every pull request into either.
+# A red tick here means something that used to work has stopped working.
+#
+# The secrets below must point at the STAGING Supabase project, never production:
+# the browser tests create real rows.
 on:
   push:
-    branches: [main]
+    branches: [dev, prod]
   pull_request:
+    branches: [dev, prod]
   workflow_dispatch:
 
 jobs:
@@ -31,6 +35,12 @@ jobs:
       - name: Install
         run: npm ci
 
+      # Fast logic tests: no browser, no database, a few seconds.
+      - name: Unit tests
+        run: npx playwright test --project=unit
+        env:
+          BASE_URL: http://unused
+
       # Catches type errors before anything is deployed. This is the check
       # that would have caught several of the build failures we hit.
       - name: Build
@@ -39,8 +49,8 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
-      - name: Run tests
-        run: npx playwright test
+      - name: Run browser tests
+        run: npx playwright test --project=setup --project=chromium
 
       - name: Keep the report
         if: ${{ !cancelled() }}

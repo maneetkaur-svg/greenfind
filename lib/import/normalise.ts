@@ -161,3 +161,93 @@ function ok(y: number, mo: number, d: number): string | null {
 }
 
 export { GST_STATES };
+
+/* ================= added for the legacy vendor sheet ================= */
+
+export type StatusCode = 'active' | 'inactive' | 'pending' | 'blocked';
+const STATUS_WORDS: Record<StatusCode, string[]> = {
+  active:   ['active', 'approved', 'onboarded', 'live', 'current', 'enabled', 'verified', 'registered', 'empanelled', 'empaneled', 'yes', 'y', 'true', '1'],
+  inactive: ['inactive', 'in active', 'disabled', 'dormant', 'closed', 'discontinued', 'not active', 'deactivated', 'no', 'n', 'false', '0'],
+  pending:  ['pending', 'draft', 'in process', 'in progress', 'under review', 'new', 'awaiting', 'submitted', 'applied', 'on hold', 'hold', 'review', 'to be verified', 'unverified'],
+  blocked:  ['blocked', 'blacklisted', 'black listed', 'rejected', 'suspended', 'banned', 'debarred', 'terminated', 'disqualified'],
+};
+/** Returns null for blank AND for anything not recognised — the caller decides what that means. */
+export function normStatus(v: unknown): StatusCode | null {
+  const s = clean(v).toLowerCase().replace(/[_\-]+/g, ' ').replace(/\s+/g, ' ');
+  if (!s) return null;
+  for (const [code, words] of Object.entries(STATUS_WORDS) as [StatusCode, string[]][])
+    if (words.includes(s)) return code;
+  return null;
+}
+
+/** "30", "45 days", "1 month", "Advance" … → days, plus the original wording when it is not a plain number. */
+export function normCredit(v: unknown): { days: number | null; note: string | null; understood: boolean } | null {
+  const raw = clean(v);
+  if (!raw) return null;
+  const s = raw.toLowerCase();
+  let m = s.match(/^(\d{1,3})(?:\.0+)?\s*(?:d|day|days)?$/);
+  if (m) { const d = +m[1]; return d <= 365 ? { days: d, note: null, understood: true } : { days: null, note: raw.slice(0, 100), understood: false }; }
+  m = s.match(/^(\d{1,2})\s*(?:month|months|mth|mths)$/);
+  if (m) return { days: +m[1] * 30, note: raw.slice(0, 100), understood: true };
+  if (/^(advance|immediate|immediately|nil|cod|cash|prepaid|upfront|pro ?forma|on delivery|against delivery|on receipt|same day)\b/.test(s))
+    return { days: 0, note: raw.slice(0, 100), understood: true };
+  return { days: null, note: raw.slice(0, 100), understood: false };
+}
+
+/** Work out the industry from free-text Services. Returns null when nothing matches OR when more than one industry does. */
+const IND_RX: Record<string, RegExp> = {
+  recycling: /recycl|\bepr\b|waste|scrap|e-?waste|battery|batteries|tyre|tire|used oil|end of life|\bpwp\b|\bpibo\b|reprocess|pyrolysis|crumb rubber|granul|flake/i,
+  packaging: /packag|packing|corrugat|carton|pallet|\bbox(es)?\b|stretch film|\bfilm\b|foam|bopp|strapping|\bcrate|\bpouch|bubble wrap|wrapping/i,
+  transportation: /transport|logistic|freight|trucking|\btruck|\bfleet\b|\bftl\b|\bptl\b|\bvtl\b|cargo|courier|haulage|shipping|\bcarrier|\bdelivery vehicle/i,
+};
+export function deriveIndustry(text: unknown): { industry: 'recycling' | 'packaging' | 'transportation' | null; ambiguous: boolean } {
+  const s = clean(text);
+  if (!s) return { industry: null, ambiguous: false };
+  const hits = (Object.keys(IND_RX) as ('recycling' | 'packaging' | 'transportation')[]).filter(k => IND_RX[k].test(s));
+  if (hits.length === 1) return { industry: hits[0], ambiguous: false };
+  return { industry: null, ambiguous: hits.length > 1 };
+}
+
+/** The "GST / Aadhaar" column holds either. A GSTIN is kept. An Aadhaar number is
+ *  NEVER kept in full: only the last four digits survive, and the full number is
+ *  never returned, echoed in a message, or written to a report. */
+export type TaxId =
+  | { kind: 'blank' }
+  | { kind: 'gstin'; gstin: string }
+  | { kind: 'aadhaar'; last4: string }
+  | { kind: 'invalid'; shown: string };
+
+export function parseTaxId(v: unknown, gstinRx: RegExp): TaxId {
+  let s = normGstin(v);
+  if (!s) return { kind: 'blank' };
+  if (/^\d+(\.\d+)?E\+?\d+$/i.test(s)) s = normDigits(s);          // Excel turned it into 1.23E+11
+  if (/^\d+\.0+$/.test(s)) s = s.replace(/\.0+$/, '');
+  if (gstinRx.test(s)) return { kind: 'gstin', gstin: s };
+  if (/^\d{12}$/.test(s)) return { kind: 'aadhaar', last4: s.slice(-4) };
+  if (/^[X*•]{8}\d{4}$/i.test(s)) return { kind: 'aadhaar', last4: s.slice(-4) };
+  // Anything that looks like a long number is described, not echoed.
+  const digits = s.replace(/\D/g, '');
+  if (digits.length >= 9 && digits.length >= s.length - 2) return { kind: 'invalid', shown: `a number with ${digits.length} digits` };
+  return { kind: 'invalid', shown: `"${s.slice(0, 20)}"` };
+}
+
+/** The MSME column may say Yes/No — or hold the Udyam number, or the category. */
+export function normMsmeValue(v: unknown): { is_msme: boolean | null; category?: string; udyam?: string } {
+  const raw = clean(v);
+  if (!raw) return { is_msme: null };
+  const u = raw.toUpperCase().replace(/\s+/g, '');
+  if (/^UDYAM-[A-Z]{2}-\d{2}-\d{7}$/.test(u)) return { is_msme: true, udyam: u };
+  const b = normBool(raw);
+  if (b !== null) return { is_msme: b };
+  const cat = normMsmeCategory(raw);
+  if (cat) return { is_msme: true, category: cat };
+  return { is_msme: null };
+}
+
+/** A document column holds a link, a file name, or Yes/No. Only something real is kept. */
+export function docRef(v: unknown): string | null {
+  const s = clean(v);
+  if (!s) return null;
+  if (/^(no|n|na|n\/a|nil|none|null|-+|false|0|not available|not received|pending|missing)$/i.test(s)) return null;
+  return s.slice(0, 300);
+}

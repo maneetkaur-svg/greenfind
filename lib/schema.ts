@@ -55,7 +55,7 @@ export const SECTIONS: Section[] = [
         hint: 'Exactly as on the GST certificate.' },
       { key: 'trade_name', label: 'Trade name', type: 'text', max: 200, half: true },
       { key: 'pan', label: 'PAN', type: 'readonly', half: true,
-        hint: 'Taken from the GSTIN. Not editable.' },
+        hint: 'Taken from the GSTIN, or recorded when the vendor was imported. Not editable.' },
       { key: 'entity', label: 'Entity type', type: 'select', options: ENTITY_TYPES.map(([a, b]) => [a, b] as [string, string]), half: true },
       { key: 'cin', label: 'CIN / LLPIN', type: 'text', max: 21, half: true,
         showIf: v => ['pvt_ltd', 'public_ltd', 'llp'].includes(String(v.entity ?? '')),
@@ -77,7 +77,7 @@ export const SECTIONS: Section[] = [
     blurb: 'This plant. A second plant is a second record linked to the same company.',
     fields: [
       { key: 'gstin', label: 'GSTIN', type: 'readonly',
-        hint: 'Not editable — it decides which company this site belongs to.' },
+        hint: 'Not editable — it decides which company this site belongs to. Blank for vendors imported without one.' },
       { key: 'industry', label: 'Industry type', type: 'select', required: true,
         options: INDUSTRIES.map(i => [i.code, i.label] as [string, string]), half: true },
       { key: 'site_name', label: 'Site name', type: 'text', max: 120, half: true,
@@ -101,6 +101,29 @@ export const SECTIONS: Section[] = [
       { key: 'turnover_previous', label: 'Turnover, previous financial year', type: 'currency', half: true },
       { key: 'serves_tier1_oem', label: 'Serves Tier-1 OEMs', type: 'bool', half: true },
       { key: 'key_clients', label: 'Key clients', type: 'longtext' },
+      { key: 'credit_period_days', label: 'Credit period (days)', type: 'number', half: true,
+        hint: '0 means advance or immediate payment.' },
+      { key: 'credit_period_note', label: 'Credit period, as originally written', type: 'text', max: 100, half: true,
+        showIf: v => !!v.credit_period_note, hint: 'Kept from the old portal when it was not a plain number of days.' },
+    ],
+  },
+  {
+    id: 'status',
+    label: 'Status & history',
+    table: 'vendor_site',
+    blurb: 'Where this vendor stands, and what the old portal recorded about it.',
+    fields: [
+      { key: 'status', label: 'Status', type: 'select', required: true, half: true,
+        options: [['active', 'Active'], ['inactive', 'Inactive'], ['pending', 'Pending'], ['blocked', 'Blocked']],
+        hint: 'Only Active vendors count as onboarded on the dashboard.' },
+      { key: 'legacy_vendor_code', label: 'Old vendor code', type: 'readonly', half: true,
+        hint: 'The code the previous system used. Searchable from the vendor list.' },
+      { key: 'aadhaar_last4', label: 'Aadhaar (last four digits)', type: 'readonly', half: true,
+        showIf: v => !!v.aadhaar_last4,
+        hint: 'The full number is deliberately not stored.' },
+      { key: 'services_text', label: 'Services', type: 'longtext',
+        hint: 'As recorded. The structured categories are on the Service categories tab.' },
+      { key: 'projects_text', label: 'Projects', type: 'longtext' },
     ],
   },
   {
@@ -239,5 +262,5 @@ export const SECTIONS: Section[] = [
   },
 ];
 
-export const sectionsFor = (industry: string) =>
-  SECTIONS.filter(s => !s.industries || s.industries.includes(industry));
+export const sectionsFor = (industry: string | null | undefined) =>
+  SECTIONS.filter(s => !s.industries || (!!industry && s.industries.includes(industry)));

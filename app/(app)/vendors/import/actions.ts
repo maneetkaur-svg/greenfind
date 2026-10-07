@@ -24,11 +24,12 @@ export type GroupResult = {
 const chunks = <T,>(a: T[], n: number) =>
   Array.from({ length: Math.ceil(a.length / n) }, (_, i) => a.slice(i * n, i * n + n));
 
-/** What is already on record. Returns "GSTIN|PINCODE" keys for sites, and the
- *  PANs that already have a company. Reads go through the signed-in user's
- *  permissions, so a soft-deleted record is not visible here — the database
- *  will still refuse it, and the import reports that per row. */
-export async function checkExisting(gstins: string[], pans: string[]):
+/** What is already on record. Returns identity keys — "L:<vendor code>" and
+ *  "G:<GSTIN>|<PINCODE>" — plus the PANs that already have a company. Reads go
+ *  through the signed-in user's permissions, so a soft-deleted record is not
+ *  visible here; the database will still refuse it, and the import reports that
+ *  per row. */
+export async function checkExisting(gstins: string[], pans: string[], legacyCodes: string[] = []):
   Promise<{ sites: string[]; pans: string[]; error?: string }> {
   const me = await getMe();
   if (!me) return { sites: [], pans: [], error: 'You are not signed in.' };
@@ -39,7 +40,14 @@ export async function checkExisting(gstins: string[], pans: string[]):
   for (const part of chunks([...new Set(gstins)], 100)) {
     const { data, error } = await supabase.from('vendor_site').select('gstin, pincode').in('gstin', part);
     if (error) return { sites: [], pans: [], error: error.message };
-    for (const r of data ?? []) sites.push(`${String(r.gstin).trim()}|${String(r.pincode).trim()}`);
+    for (const r of data ?? []) sites.push(`G:${String(r.gstin).trim()}|${String(r.pincode ?? '').trim()}`);
+  }
+  for (const part of chunks([...new Set(legacyCodes.map(c => c.toUpperCase()))], 50)) {
+    // legacy codes are compared case-insensitively
+    const { data, error } = await supabase.from('vendor_site').select('legacy_vendor_code')
+      .or(part.map(c => `legacy_vendor_code.ilike.${c.replace(/[,()*%]/g, '_')}`).join(','));
+    if (error) return { sites: [], pans: [], error: error.message };
+    for (const r of data ?? []) sites.push(`L:${String(r.legacy_vendor_code).trim().toUpperCase()}`);
   }
   const found: string[] = [];
   for (const part of chunks([...new Set(pans)], 100)) {

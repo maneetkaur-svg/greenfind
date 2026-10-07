@@ -1,10 +1,10 @@
 'use client';
 import { useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { IMPORT_FIELDS, FIELD_BY_KEY } from '@/lib/import/fields';
+import { IMPORT_FIELDS } from '@/lib/import/fields';
 import { matchHeaders } from '@/lib/import/mapping';
 import { readFile, splitSheet, type ReadResult } from '@/lib/import/readFile';
-import { parseRow, checkFile, type FileCheck, type Mapping } from '@/lib/import/validate';
+import { parseRow, checkFile, problemNote, type FileCheck, type Mapping } from '@/lib/import/validate';
 import { buildPlan } from '@/lib/import/plan';
 import { downloadTemplate } from '@/lib/import/template';
 import { checkExisting, importGroups, type GroupResult } from './actions';
@@ -12,7 +12,7 @@ import { checkExisting, importGroups, type GroupResult } from './actions';
 type Step = 'file' | 'map' | 'check' | 'run' | 'done';
 const MAX_ROWS = 5000;
 const BATCH = 10;                       // companies per server call
-const NEEDED = ['gstin', 'legal_name', 'industry', 'address_line1', 'city', 'pincode'];
+
 
 const csvCell = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
 function saveCsv(name: string, rows: unknown[][]) {
@@ -71,7 +71,10 @@ export default function ImportWizard({ canUndo }: { canUndo: boolean }) {
   const mapping: Mapping = useMemo(() => {
     const m: Mapping = {}; assign.forEach((k, i) => { if (k) m[k] = i; }); return m;
   }, [assign]);
-  const missing = NEEDED.filter(k => !(k in mapping));
+  // A row needs a vendor name, and a PAN or a GSTIN to say which company it is.
+  const missing: string[] = [];
+  if (!('legal_name' in mapping)) missing.push('Vendor name');
+  if (!('gstin' in mapping) && !('pan' in mapping)) missing.push('GSTIN or PAN');
 
   /* ---------- step 3: data check ---------- */
   async function runCheck() {
@@ -79,8 +82,11 @@ export default function ImportWizard({ canUndo }: { canUndo: boolean }) {
     setBusy(true); setError('');
     try {
       const rows = split.data.map(d => parseRow(d.cells, mapping, d.rowNumber));
-      const keys = rows.filter(r => r.site.gstin && r.site.pincode).map(r => r.gstin);
-      const ex = await checkExisting(keys, rows.map(r => r.pan).filter((p): p is string => !!p));
+      const ex = await checkExisting(
+        rows.filter(r => r.gstin).map(r => r.gstin),
+        rows.map(r => r.pan).filter((p): p is string => !!p),
+        rows.map(r => r.legacyCode).filter((c): c is string => !!c),
+      );
       if (ex.error) throw new Error(ex.error);
       setExistingPans(new Set(ex.pans));
       setCheck(checkFile(rows, new Set(ex.sites)));
@@ -201,8 +207,8 @@ export default function ImportWizard({ canUndo }: { canUndo: boolean }) {
 
           {missing.length > 0 && (
             <div className="note a mb-4">
-              <b>Not matched yet:</b> {missing.map(k => FIELD_BY_KEY[k].header).join(', ')}.
-              <div className="hint">Rows cannot be saved without these (State can be filled from the GSTIN). They will be held back and listed.</div>
+              <b>Not matched yet:</b> {missing.join(' and ')}.
+              <div className="hint">Every row needs a vendor name and either a PAN or a GSTIN, so the system knows which company it belongs to.</div>
             </div>
           )}
 
@@ -232,9 +238,9 @@ export default function ImportWizard({ canUndo }: { canUndo: boolean }) {
 
           <div className="flex gap-3 mt-5">
             <button type="button" className="btn btn-o" onClick={reset}>Back</button>
-            <button type="button" className="btn btn-p" disabled={busy || split.data.length === 0 || split.data.length > MAX_ROWS || !('gstin' in mapping)}
+            <button type="button" className="btn btn-p" disabled={busy || split.data.length === 0 || split.data.length > MAX_ROWS || missing.length > 0}
                     onClick={runCheck}>{busy ? 'Checking…' : 'Check the data'}</button>
-            {!('gstin' in mapping) && <span className="hint self-center" style={{ marginTop: 0 }}>A GSTIN column is needed to continue.</span>}
+            {missing.length > 0 && <span className="hint self-center" style={{ marginTop: 0 }}>Needed to continue: {missing.join(' and ')}.</span>}
           </div>
         </div>
       )}
@@ -248,7 +254,7 @@ export default function ImportWizard({ canUndo }: { canUndo: boolean }) {
               ['Clean', check.clean, 'c-g'],
               ['Will import', check.importable, 'c-g'],
               ['Imported with a blank value', check.importable - check.clean, 'c-a'],
-              ['Held back', check.held, check.held ? 'c-r' : 'c-n'],
+              ['Held back or skipped', check.held, check.held ? 'c-r' : 'c-n'],
             ].map(([label, n, cls]) => (
               <div key={String(label)} className="card p-3">
                 <div className="text-[24px] font-bold" data-testid={`stat-${String(label).toLowerCase().replace(/[^a-z]+/g, '-')}`}>{n}</div>
@@ -264,6 +270,18 @@ export default function ImportWizard({ canUndo }: { canUndo: boolean }) {
             )}
           </p>
 
+          {(check.gaps.length > 0 || check.industryDerived > 0) && (
+            <div className="note mb-4" data-testid="gaps">
+              <b>What will be blank after import</b> (expected when the file does not carry it; fill in on each record later)
+              <ul className="text-[13px] mt-1">
+                {check.gaps.map(g => <li key={g.label}>{g.label}: {g.rows} of {check.importable}</li>)}
+              </ul>
+              {check.industryDerived > 0 && (
+                <div className="hint">{check.industryDerived} vendor{check.industryDerived === 1 ? '' : 's'} had the industry worked out from the Services column.</div>
+              )}
+            </div>
+          )}
+
           {check.byProblem.length === 0 ? (
             <div className="note mb-4"><b>No problems found.</b></div>
           ) : (
@@ -271,11 +289,11 @@ export default function ImportWizard({ canUndo }: { canUndo: boolean }) {
               {check.byProblem.map(p => (
                 <details key={p.code} className="card mb-2 p-3" open={p.severity === 'blocking'}>
                   <summary className="cursor-pointer font-semibold text-[13.5px]">
-                    <span className={`chip ${p.severity === 'blocking' ? 'c-r' : 'c-a'} mr-2`}>{p.severity === 'blocking' ? 'HELD BACK' : 'FIXABLE'}</span>
+                    <span className={`chip ${p.severity === 'blocking' ? 'c-r' : 'c-a'} mr-2`}>{p.severity === 'blocking' ? (p.code === 'duplicate_in_file' || p.code === 'already_in_system' ? 'SKIPPED' : 'HELD BACK') : 'FIXABLE'}</span>
                     {p.title} <span style={{ color: 'var(--faint)' }}>· {p.rows.length} row{p.rows.length === 1 ? '' : 's'}</span>
                   </summary>
                   <div className="hint mt-2">
-                    {p.severity === 'blocking' ? 'The database cannot store these rows as they are, so they are not imported.' : 'These rows import; the bad value is left blank so you can fix it on the record.'}
+                    {problemNote(p.code, p.severity)}
                   </div>
                   <div className="text-[13px] mt-2">Rows: {p.rows.slice(0, 25).join(', ')}{p.rows.length > 25 ? ` … and ${p.rows.length - 25} more` : ''}</div>
                   <ul className="text-[12.5px] mt-2" style={{ color: 'var(--muted)' }}>
