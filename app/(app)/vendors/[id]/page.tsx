@@ -81,9 +81,13 @@ async function VendorRecord({
     supabase.from('site_document')
       .select('id, doc_type, file_name, file_size, doc_number, valid_until, uploaded_at, storage_path')
       .eq('site_id', id).is('superseded_at', null).order('uploaded_at', { ascending: false }),
-    supabase.from('document_requirement')
-      .select('doc_type, level, document_type!inner (code, label, applies_to, expiry_tracked, uploaded_by_party, sort)')
-      .eq('industry', site.industry),
+    // A vendor imported without an industry has no document rules yet; asking for
+    // "industry = null" would be an error, so ask for nothing instead.
+    site.industry
+      ? supabase.from('document_requirement')
+          .select('doc_type, level, document_type!inner (code, label, applies_to, expiry_tracked, uploaded_by_party, sort)')
+          .eq('industry', site.industry)
+      : Promise.resolve({ data: [], error: null }),
   ]);
 
   const one = <T,>(v: unknown): T | null =>
@@ -101,10 +105,12 @@ async function VendorRecord({
     .filter((x): x is DocType & { sort: number } => x !== null)
     .sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0));
 
-  const { data: catRows, error: eCats } = await supabase
-    .from('service_category')
-    .select('id, code, label, sort, service_subcategory (id, code, label, sort)')
-    .eq('industry', site.industry).eq('is_active', true).order('sort');
+  const { data: catRows, error: eCats } = site.industry
+    ? await supabase
+        .from('service_category')
+        .select('id, code, label, sort, service_subcategory (id, code, label, sort)')
+        .eq('industry', site.industry).eq('is_active', true).order('sort')
+    : { data: [], error: null };
 
   // Postgres may report this relationship as one-to-one, in which case the
   // embedded value arrives as an object rather than an array. Calling .sort()
@@ -147,7 +153,18 @@ async function VendorRecord({
 
   const readOnly = me.role === 'user';
   const sections = sectionsFor(site.industry);
-  const industryLabel = INDUSTRIES.find(i => i.code === site.industry)?.label ?? site.industry;
+  const industryLabel = INDUSTRIES.find(i => i.code === site.industry)?.label ?? 'Unclassified';
+
+  // What a vendor imported from the old portal is still missing. Shown as a plain list, not as errors.
+  const blanks: string[] = [];
+  if (!site.industry) blanks.push('industry');
+  if (!site.gstin) blanks.push('GSTIN');
+  if (!site.address_line1 || !site.city || !site.state || !site.pincode) blanks.push('address');
+  if (!Array.isArray(contacts) || contacts.length === 0) blanks.push('contacts');
+  if (!company.bank_account_number || !company.ifsc || !company.bank_account_name || !company.bank_branch) blanks.push('banking details');
+  if (company.is_msme && (!company.msme_category || !company.udyam_number)) blanks.push('MSME category and Udyam number');
+  const legacyDocs = (site.legacy_documents && typeof site.legacy_documents === 'object')
+    ? Object.entries(site.legacy_documents as Record<string, string>) : [];
 
   const tabs = [
     ...sections.map(s => ({ id: s.id, label: s.label })),
@@ -174,11 +191,25 @@ async function VendorRecord({
         <div>
           <h1 className="text-[26px] font-bold">{company.legal_name}</h1>
           <p className="text-[13.5px] mt-1" style={{ color: 'var(--faint)' }}>
-            {site.site_code} · {industryLabel} · {site.city}, {site.state} · {site.gstin}
+            {[site.site_code, industryLabel, [site.city, site.state].filter(Boolean).join(', ') || null, site.gstin || (company.pan ? `PAN ${company.pan}` : null)].filter(Boolean).join(' · ')}
           </p>
         </div>
-        {readOnly && <span className="chip c-a">READ ONLY</span>}
+        <div className="flex gap-2 items-center">
+          {site.status && (
+            <span className={`chip ${site.status === 'active' ? 'c-g' : site.status === 'blocked' ? 'c-r' : 'c-a'}`}>
+              {String(site.status).toUpperCase()}
+            </span>
+          )}
+          {readOnly && <span className="chip c-a">READ ONLY</span>}
+        </div>
       </div>
+
+      {site.migrated_from_portal && blanks.length > 0 && (
+        <div className="note a mb-5" data-testid="migrated-note">
+          <b>Imported from the old portal. Still to fill in:</b> {blanks.join(', ')}.
+          <div className="hint">Nothing here blocks you. Complete what you can, tab by tab.</div>
+        </div>
+      )}
 
       {queryErrors.length > 0 && (
         <div className="note r mb-5">
@@ -235,6 +266,21 @@ async function VendorRecord({
           <CategoriesForm cats={cats} siteId={id} readOnly={readOnly}
                           selectedCats={(Array.isArray(selCats) ? selCats : []).map(r => r.category_id)}
                           selectedSubs={(Array.isArray(selSubs) ? selSubs : []).map(r => r.subcategory_id)} />
+        )}
+        {active === 'documents' && legacyDocs.length > 0 && (
+          <div className="note mb-5" data-testid="legacy-docs">
+            <b>The old portal listed these documents.</b> The files did not come across, so upload each one below.
+            <ul className="text-[13px] mt-2">
+              {legacyDocs.map(([k, v]) => (
+                <li key={k}>
+                  <span className="font-semibold">{({ gst: 'GST / Aadhaar', pan: 'PAN', agreement: 'Agreement', cheque: 'Cancelled cheque', msme: 'MSME' } as Record<string, string>)[k] ?? k}:</span>{' '}
+                  {/^https?:\/\//i.test(v)
+                    ? <a href={v} target="_blank" rel="noopener noreferrer" className="underline">{v}</a>
+                    : v}
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
         {active === 'documents' && (
           <DocumentsTab types={docTypes} docs={docs} siteId={id} readOnly={readOnly} />

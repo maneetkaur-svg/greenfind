@@ -1,10 +1,12 @@
 import Link from 'next/link';
 import { createClient, getMe } from '@/lib/supabase/server';
 import { INDUSTRIES } from '@/lib/constants';
+import DashboardCard, { type DashRow } from './DashboardCard';
 
 type Row = {
   id: string; site_code: string; legal_name: string; trade_name: string | null;
-  gstin: string; industry: string; state: string; city: string;
+  gstin: string | null; industry: string | null; state: string | null; city: string | null;
+  status: string | null; legacy_vendor_code: string | null; services_text: string | null;
   company_id: string; company_code: string; sibling_sites: number;
   docs_attached: number; docs_verified: number; docs_required: number;
   has_pending_request: boolean; updated_at: string;
@@ -24,38 +26,47 @@ export default async function VendorsPage({
   const supabase = await createClient();
 
   let query = supabase.from('site_summary').select('*').order('updated_at', { ascending: false });
-  if (industry) query = query.eq('industry', industry);
+  if (industry === 'unclassified') query = query.is('industry', null);
+  else if (industry) query = query.eq('industry', industry);
   const { data, error } = await query;
+
+  // The dashboard is a nicety: if the view is not there yet (06_data_fit.sql not run) the page still works.
+  const { data: dash } = await supabase.from('vendor_dashboard').select('industry, vendors, active_vendors, sites');
 
   let rows = (data ?? []) as Row[];
   if (q) {
     const needle = q.toLowerCase();
     rows = rows.filter(r =>
-      `${r.legal_name} ${r.trade_name ?? ''} ${r.gstin} ${r.site_code}`.toLowerCase().includes(needle));
+      `${r.legal_name} ${r.trade_name ?? ''} ${r.gstin ?? ''} ${r.site_code} ${r.legacy_vendor_code ?? ''} ${r.services_text ?? ''}`.toLowerCase().includes(needle));
   }
 
   const companies = new Set(rows.map(r => r.company_id)).size;
 
   return (
     <>
-      <div className="flex justify-between items-start gap-4 flex-wrap mb-5">
+      <div className="flex justify-between items-start gap-5 flex-wrap mb-5">
         <div>
           <h1 className="text-[26px] font-bold">Vendor Master</h1>
           <p className="text-[13.5px] mt-1" style={{ color: 'var(--faint)' }}>
             {rows.length} site{rows.length === 1 ? '' : 's'} across {companies} compan{companies === 1 ? 'y' : 'ies'}
           </p>
+          {me?.role !== 'user' && (
+            <div className="flex gap-2 mt-4">
+              <Link href="/vendors/import" className="btn btn-o">Import</Link>
+              <Link href="/vendors/new" className="btn btn-p">+ Add vendor</Link>
+            </div>
+          )}
         </div>
-        {me?.role !== 'user' && (
-          <Link href="/vendors/new" className="btn btn-p">+ Add vendor</Link>
-        )}
+        {Array.isArray(dash) && dash.length > 0 && <DashboardCard rows={dash as DashRow[]} />}
       </div>
 
       <form className="flex gap-3 flex-wrap mb-4">
-        <input name="q" defaultValue={q ?? ''} placeholder="Search name, GSTIN or code"
+        <input name="q" defaultValue={q ?? ''} placeholder="Search name, GSTIN, vendor code or services"
                className="flex-1 min-w-[230px]" />
         <select name="industry" defaultValue={industry ?? ''} className="w-[200px]">
           <option value="">All industries</option>
           {INDUSTRIES.map(i => <option key={i.code} value={i.code}>{i.label}</option>)}
+          <option value="unclassified">Unclassified</option>
         </select>
         <button className="btn btn-o">Search</button>
       </form>
@@ -84,7 +95,7 @@ export default async function VendorsPage({
             <thead>
               <tr>
                 <th>Vendor</th><th>Industry</th><th>State</th>
-                <th>Documents</th><th>Status</th><th>Sites</th>
+                <th>Status</th><th>Documents</th><th>Completeness</th><th>Sites</th>
               </tr>
             </thead>
             <tbody>
@@ -96,11 +107,19 @@ export default async function VendorsPage({
                       <Link href={`/vendors/${r.id}`} className="font-bold"
                             style={{ color: 'var(--head)' }}>{r.legal_name}</Link>
                       <div className="text-[12px]" style={{ color: 'var(--faint)' }}>
-                        {r.site_code} · {r.gstin}
+                        {[r.site_code, r.legacy_vendor_code, r.gstin].filter(Boolean).join(' · ')}
                       </div>
                     </td>
-                    <td>{INDUSTRIES.find(i => i.code === r.industry)?.label ?? r.industry}</td>
-                    <td className="text-[13px]">{r.state}</td>
+                    <td>{INDUSTRIES.find(i => i.code === r.industry)?.label
+                      ?? <span className="chip c-n">UNCLASSIFIED</span>}</td>
+                    <td className="text-[13px]">{r.state ?? '—'}</td>
+                    <td>
+                      {r.status && (
+                        <span className={`chip ${r.status === 'active' ? 'c-g' : r.status === 'blocked' ? 'c-r' : 'c-a'}`}>
+                          {r.status.toUpperCase()}
+                        </span>
+                      )}
+                    </td>
                     <td className="text-[13px]">
                       {r.docs_attached}/{r.docs_required} attached
                     </td>
