@@ -6,7 +6,7 @@ import ImportWizard from './ImportWizard';
 export default async function ImportPage() {
   const me = await getMe();
   if (!me) redirect('/login');
-  if (me.role === 'user') redirect('/vendors');       // read-only accounts cannot import
+  if (me.role !== 'super_admin') redirect('/vendors'); // import is super-admin only; operations cannot import
 
   return (
     <>

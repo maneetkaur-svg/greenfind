@@ -54,35 +54,28 @@ export default async function VendorsPage({
     return `/vendors?${params.toString()}`;
   };
 
-  const companies = new Set(rows.map(r => r.company_id)).size;
-
   return (
     <>
-      <div className="flex justify-between items-start gap-5 flex-wrap mb-5">
-        <div>
-          <p className="text-[13.5px]" style={{ color: 'var(--faint)' }}>
-            {rows.length} site{rows.length === 1 ? '' : 's'} across {companies} compan{companies === 1 ? 'y' : 'ies'}
-          </p>
-          {me?.role !== 'user' && (
-            <div className="flex gap-2 mt-4">
-              <Link href="/vendors/import" className="btn btn-o">Import</Link>
-              <Link href="/vendors/new" className="btn btn-p">+ Add vendor</Link>
-            </div>
-          )}
-        </div>
-        {Array.isArray(dash) && dash.length > 0 && <DashboardCard rows={dash as DashRow[]} />}
-      </div>
+      {Array.isArray(dash) && dash.length > 0 && <DashboardCard rows={dash as DashRow[]} />}
 
-      <form className="flex gap-3 flex-wrap mb-4">
-        <input name="q" defaultValue={q ?? ''} placeholder="Search name, GSTIN, vendor code or services"
-               className="flex-1 min-w-[230px]" />
-        <select name="industry" defaultValue={industry ?? ''} className="w-[200px]">
-          <option value="">All industries</option>
-          {INDUSTRIES.map(i => <option key={i.code} value={i.code}>{i.label}</option>)}
-          <option value="unclassified">Unclassified</option>
-        </select>
-        <button className="btn btn-o">Search</button>
-      </form>
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+        <form className="flex items-center gap-2 flex-wrap">
+          <input name="q" defaultValue={q ?? ''} placeholder="Search name, GSTIN, vendor code or services"
+                 className="w-[280px]" />
+          <select name="industry" defaultValue={industry ?? ''} className="w-[170px]">
+            <option value="">All industries</option>
+            {INDUSTRIES.map(i => <option key={i.code} value={i.code}>{i.label}</option>)}
+            <option value="unclassified">Unclassified</option>
+          </select>
+          <button className="btn btn-o">Search</button>
+        </form>
+        {me?.role !== 'user' && (
+          <div className="flex gap-2">
+            {me?.role === 'super_admin' && <Link href="/vendors/import" className="btn btn-o">Import</Link>}
+            <Link href="/vendors/new" className="btn btn-p">+ Add vendor</Link>
+          </div>
+        )}
+      </div>
 
       {error && (
         <div className="note r mb-4">
@@ -117,7 +110,7 @@ export default async function VendorsPage({
                     </span>
                   </Link>
                 </th>
-                <th>Industry</th><th>State</th>
+                <th>Industry</th><th>State (by GST)</th>
                 <th>Status</th><th>Documents</th><th>Completeness</th><th>Sites</th>
               </tr>
             </thead>
@@ -125,10 +118,11 @@ export default async function VendorsPage({
               {rows.map(r => {
                 const [cls, label] = status(r);
                 return (
-                  <tr key={r.id} className="hover:bg-[var(--surface-2)]">
+                  <tr key={r.id} className="relative hover:bg-[var(--surface-2)] cursor-pointer">
                     <td>
-                      <Link href={`/vendors/${r.id}`} className="font-bold"
-                            style={{ color: 'var(--head)' }}>{r.legal_name}</Link>
+                      <Link href={`/vendors/${r.id}`} className="absolute inset-0" style={{ zIndex: 1 }}
+                            aria-label={r.legal_name} />
+                      <span className="font-bold" style={{ color: 'var(--head)' }}>{r.legal_name}</span>
                       <div className="text-[12px]" style={{ color: 'var(--faint)' }}>
                         {[r.legacy_vendor_code,
                           r.gstin ?? (r.aadhaar_last4 ? `Aadhaar ••••${r.aadhaar_last4}` : null)]

@@ -46,16 +46,21 @@ h1,h2,h3,h4 { color: var(--head); letter-spacing: -.02em; }
 }
 .nav-loading-veil span.label { font-size: 13.5px; font-weight: 600; color: var(--muted); }
 
-/* The left sidebar's nav items. Brightens on hover; the active one stays lit. */
+/* The left sidebar pane: a darker panel so it reads as a distinct zone from
+   the (lighter) main content next to it. */
+.sidebar-pane { background: var(--navy); border-radius: 14px; }
+
+/* The left sidebar's nav items, against the dark pane. Brightens on hover;
+   the active one stays lit. */
 .nav-tab {
   display: block; padding: 10px 14px; border-radius: 9px;
-  font-size: 13.5px; font-weight: 700; color: var(--muted);
+  font-size: 13.5px; font-weight: 700; color: #AEB2C9;
   transition: background-color .12s, color .12s;
 }
-.nav-tab:hover { background: var(--p50); color: var(--p700); }
-.nav-tab.active { background: var(--p50); color: var(--p700); }
-.nav-tab.disabled { color: var(--faint); opacity: .6; cursor: not-allowed; }
-.nav-tab.disabled:hover { background: none; color: var(--faint); }
+.nav-tab:hover { background: color-mix(in srgb, var(--p500) 24%, transparent); color: #fff; }
+.nav-tab.active { background: var(--p500); color: #fff; }
+.nav-tab.disabled { color: #565A74; opacity: .7; cursor: not-allowed; }
+.nav-tab.disabled:hover { background: none; color: #565A74; }
 .chip    { display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:700;
            padding:3px 9px; border-radius:999px; letter-spacing:.03em; white-space:nowrap; }
 .c-g { background: var(--p50); color: var(--p700); }

@@ -52,6 +52,7 @@ const INDUSTRY_ALIASES: Record<string, string> = {
   packaging: 'packaging', packing: 'packaging', packager: 'packaging', 'packaging supplier': 'packaging',
   transportation: 'transportation', transport: 'transportation', transporter: 'transportation',
   logistics: 'transportation', 'logistics & transport': 'transportation', freight: 'transportation',
+  warehouse: 'warehouse', warehousing: 'warehouse', 'warehouse management': 'warehouse',
 };
 export function normIndustry(v: unknown): string | null {
   const s = clean(v).toLowerCase().replace(/\s+/g, ' ');
@@ -199,11 +200,12 @@ const IND_RX: Record<string, RegExp> = {
   recycling: /recycl|\bepr\b|waste|scrap|e-?waste|battery|batteries|tyre|tire|used oil|end of life|\bpwp\b|\bpibo\b|reprocess|pyrolysis|crumb rubber|granul|flake/i,
   packaging: /packag|packing|corrugat|carton|pallet|\bbox(es)?\b|stretch film|\bfilm\b|foam|bopp|strapping|\bcrate|\bpouch|bubble wrap|wrapping/i,
   transportation: /transport|logistic|freight|trucking|\btruck|\bfleet\b|\bftl\b|\bptl\b|\bvtl\b|cargo|courier|haulage|shipping|\bcarrier|\bdelivery vehicle/i,
+  warehouse: /warehous/i,
 };
-export function deriveIndustry(text: unknown): { industry: 'recycling' | 'packaging' | 'transportation' | null; ambiguous: boolean } {
+export function deriveIndustry(text: unknown): { industry: 'recycling' | 'packaging' | 'transportation' | 'warehouse' | null; ambiguous: boolean } {
   const s = clean(text);
   if (!s) return { industry: null, ambiguous: false };
-  const hits = (Object.keys(IND_RX) as ('recycling' | 'packaging' | 'transportation')[]).filter(k => IND_RX[k].test(s));
+  const hits = (Object.keys(IND_RX) as ('recycling' | 'packaging' | 'transportation' | 'warehouse')[]).filter(k => IND_RX[k].test(s));
   if (hits.length === 1) return { industry: hits[0], ambiguous: false };
   return { industry: null, ambiguous: hits.length > 1 };
 }

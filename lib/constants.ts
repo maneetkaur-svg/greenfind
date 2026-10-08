@@ -5,6 +5,7 @@ export const INDUSTRIES = [
   { code: 'recycling',      label: 'Recycling' },
   { code: 'packaging',      label: 'Packaging' },
   { code: 'transportation', label: 'Transportation' },
+  { code: 'warehouse',      label: 'Warehouse' },
 ] as const;
 export type Industry = (typeof INDUSTRIES)[number]['code'];
 

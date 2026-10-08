@@ -66,7 +66,7 @@ export async function importGroups(groups: GroupPayload[]): Promise<GroupResult[
   const fail = (msg: string): GroupResult[] =>
     groups.map(g => ({ pan: g.pan, error: msg, sites: g.sites.map(s => ({ row: s.row, ok: false, error: msg })) }));
   if (!me) return fail('You are not signed in.');
-  if (me.role === 'user') return fail('Your role is read-only.');
+  if (me.role !== 'super_admin') return fail('Import is restricted to super admins.');
   if (groups.length > 50) return fail('Too many companies in one request.');
 
   const supabase = await createClient();

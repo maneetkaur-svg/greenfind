@@ -103,7 +103,7 @@ async function main() {
       { source: 'Legal name', text: legalName },
     ].filter(a => a.text);
 
-    let industry: 'recycling' | 'packaging' | 'transportation' | null = null;
+    let industry: 'recycling' | 'packaging' | 'transportation' | 'warehouse' | null = null;
     let matchedSource = '';
     let sawAmbiguous = false;
 
