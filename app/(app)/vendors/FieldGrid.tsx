@@ -25,7 +25,7 @@ export default function FieldGrid({
             </label>
 
             {f.type === 'readonly' ? (
-              <input id={f.key} value={String(v ?? '')} disabled
+              <input id={f.key} value={f.options?.find(([val]) => val === v)?.[1] ?? String(v ?? '')} disabled
                      placeholder={f.placeholder} />
             ) : f.type === 'bool' ? (
               <select id={f.key} disabled={disabled}

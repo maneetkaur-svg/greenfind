@@ -15,7 +15,9 @@
     "import:gstin": "tsx scripts/import/update-gstin.ts",
     "classify:industry": "tsx scripts/import/classify-industry.ts",
     "backfill:fields": "tsx scripts/import/backfill-fields.ts",
-    "fill:bank-branch": "tsx scripts/import/fill-bank-branch.ts"
+    "fill:bank-branch": "tsx scripts/import/fill-bank-branch.ts",
+    "cleanup:vendors": "tsx scripts/import/cleanup-vendors.ts",
+    "extract:entity": "tsx scripts/import/extract-entity-from-certificates.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",

@@ -91,3 +91,43 @@ redacted.
   just from a local terminal instead of a Vercel server action.
 - Never invents a `document_type` code: the script checks `gst`, `pan`, `nda`, `cheque`
   and `udyam` exist before touching anything, and aborts if any are missing.
+
+## Other one-off scripts in this folder
+
+All of them share `.env.import`, the same `--dry-run` / `--allow-prod` convention, and
+write a report to `scripts/import/output/`.
+
+| Script | `npm run …` | What it does |
+|---|---|---|
+| `update-gstin.ts` | `import:gstin` | Fills a blank `vendor_site.gstin` from the sheet, matched by Vendor Code — never if the derived PAN would conflict with the company on record. |
+| `classify-industry.ts` | `classify:industry` | Classifies Unclassified vendors from Services text, falling back to the company's legal name. Only applies a confident, single-industry match. |
+| `backfill-fields.ts` | `backfill:fields` | Fills any other blank company/site field from the sheet (except `gstin`/`industry`/`pan`, which the two scripts above own) and upgrades `is_msme` to `true` on real evidence. |
+| `fill-bank-branch.ts` | `fill:bank-branch` | Fills a blank `company.bank_branch` by looking up the IFSC already on file against the public IFSC registry. |
+| `cleanup-vendors.ts` | `cleanup:vendors` | One-off: reclassifies a fixed list of exact Services-text values, and soft-deletes vendors whose Services text is an internal expense category rather than a real vendor type. The exact value lists are hardcoded for this specific cleanup — check them before re-running on different data. |
+| `extract-entity-from-certificates.ts` | `extract:entity` | Runs GST→entity-type extraction (see below) against every existing company that has a GST certificate on file and no entity type yet. Sequential with a 5s delay between calls — Gemini's free tier is rate-limited per minute. |
+
+## GST entity-type extraction
+
+`lib/entityFromCertificate.ts` (app code, not a script) reads a vendor's own GST
+certificate — the PDF or image already uploaded through the app's document upload —
+with Gemini's multimodal API, and maps the extracted Constitution of Business onto
+`company.entity` (`proprietorship`/`partnership`/`pvt_ltd`/`public_ltd`/`llp` only —
+anything else is left alone, never guessed). No third-party GST lookup API, no
+scraping — just the certificate Fitsol already has. Two things use it:
+
+- **Automatically**, right after a `gst` document is uploaded for a vendor
+  (`documentActions.ts`'s `uploadDocument`), best-effort: if it fails or times out, the
+  upload itself still succeeds, just with entity type left blank. (Not at vendor
+  creation — there's no certificate to read yet at that point.)
+- **`extract-entity-from-certificates.ts`**, once, for every vendor whose GST
+  certificate already existed before this was added.
+
+Both need `GEMINI_API_KEY` set — in `.env.import` for the bulk script, and in the
+actual app's environment (`.env.local` locally, Vercel's Environment Variables in
+production) for the automatic path. Without it, both fail closed with a clear message
+rather than silently doing nothing. The Entity type field on the Identity tab is
+display-only — it is read automatically, not typed in.
+
+`--retry-cached` on the bulk script re-applies a constitution already extracted in a
+previous run that failed only to *save* (e.g. a database constraint, since fixed) —
+no new Gemini call, the certificate was already read once.

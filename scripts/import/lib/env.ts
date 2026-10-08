@@ -4,6 +4,8 @@ export type ImportEnv = {
   supabaseUrl: string;
   serviceRoleKey: string;
   prodHost: string | null;
+  geminiApiKey: string | null;
+  geminiModel: string | null;
 };
 
 export class ImportEnvError extends Error {}
@@ -45,7 +47,9 @@ export function loadImportEnv(envPath: string): ImportEnv {
     throw new ImportEnvError(`SUPABASE_URL in ${envPath} is not a valid URL: ${supabaseUrl}`);
   }
   const prodHost = vars.PROD_SUPABASE_HOST ? vars.PROD_SUPABASE_HOST.trim().toLowerCase() : null;
-  return { supabaseUrl, serviceRoleKey, prodHost };
+  const geminiApiKey = vars.GEMINI_API_KEY || null;
+  const geminiModel = vars.GEMINI_MODEL || null;
+  return { supabaseUrl, serviceRoleKey, prodHost, geminiApiKey, geminiModel };
 }
 
 /** Pure, so it is unit-testable without a real .env.import file on disk.

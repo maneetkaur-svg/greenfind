@@ -133,6 +133,11 @@ export async function createVendor(p: VendorPayload): Promise<CreateResult> {
   if (Object.values(p.certificates).some(v => v !== null && v !== ''))
     await supabase.from('site_certificate_data').insert({ site_id: siteId, ...p.certificates });
 
+  // Entity type is no longer looked up here — there's no GST certificate to
+  // read yet at this point in the flow. It fills in automatically once the
+  // GST document is uploaded (documentActions.ts), or via
+  // scripts/import/extract-entity-from-certificates.ts for the backlog.
+
   revalidatePath('/vendors');
   return { siteId };
 }

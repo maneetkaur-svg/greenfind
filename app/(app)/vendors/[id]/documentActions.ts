@@ -1,6 +1,7 @@
 'use server';
 import { revalidatePath } from 'next/cache';
 import { createClient, getMe } from '@/lib/supabase/server';
+import { extractEntityFromCertificate } from '@/lib/entityFromCertificate';
 
 export type DocState = { error?: string; ok?: string };
 
@@ -58,6 +59,24 @@ export async function uploadDocument(
   if (rowErr) {
     await supabase.storage.from('vendor-documents').remove([path]);
     return { error: 'Saved the file but could not record it, so it has been removed: ' + rowErr.message };
+  }
+
+  // Best-effort: a GST certificate just arrived, so this is the one moment a
+  // fresh entity-type reading is actually possible. Never blocks or fails
+  // the upload itself — see lib/entityFromCertificate.ts.
+  if (docType === 'gst') {
+    try {
+      const { data: site } = await supabase.from('vendor_site').select('company_id').eq('id', siteId).single();
+      const { data: co } = site
+        ? await supabase.from('company').select('entity').eq('id', site.company_id).single()
+        : { data: null };
+      if (site && !co?.entity) {
+        const buffer = Buffer.from(await file.arrayBuffer());
+        await extractEntityFromCertificate(supabase, site.company_id, buffer, file.type || 'application/pdf');
+      }
+    } catch {
+      /* ignored — see above */
+    }
   }
 
   revalidatePath(`/vendors/${siteId}`);
