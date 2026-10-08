@@ -48,8 +48,6 @@ export const IMPORT_FIELDS: ImportField[] = [
   { key: 'legal_name', header: 'Legal name', table: 'company', type: 'text', required: true,
     aliases: ['legal name', 'company name', 'name of company', 'vendor name', 'name of the company', 'firm name', 'registered name', 'name'],
     note: 'Exactly as on the GST certificate.', example: 'Shree Jageram Industries' },
-  { key: 'trade_name', header: 'Trade name', table: 'company', type: 'text', required: false,
-    aliases: ['trade name', 'brand name', 'brand', 'trading name', 'trade name / brand'], example: 'Jageram PET' },
   { key: 'pan', header: 'PAN', table: 'company', type: 'pan', required: false, excelText: true,
     aliases: ['pan', 'pan no', 'pan number', 'pan card'],
     note: 'Optional. Worked out from the GSTIN when blank. If given it must match the GSTIN.', example: 'AYEPP3943P' },

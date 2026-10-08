@@ -12,6 +12,7 @@ Run in the Supabase **SQL Editor**, one file at a time, in this order:
 | 6 | `08_vendor_list_fixes.sql` | Vendor list: Aadhaar-only vendors show their number instead of a blank GSTIN; the Documents count compares against the five basic KYC documents (MSME-aware) instead of industry CTO/EPR requirements. | Yes |
 | 7 | `09_industry_super_admin_only.sql` | Changing an existing vendor's industry becomes Super Admin only, enforced by a trigger (not just the UI). | Yes |
 | 8 | `10_default_geography_from_gstin.sql` | A vendor's GSTIN state is marked as a serviceable state automatically — triggers for every future vendor, plus a one-time catch-up for existing ones. | Yes |
+| 9 | `11_drop_trade_name.sql` | Removes company.trade_name (confirmed blank on every record) and the Identity tab's Trade name field. | Yes |
 
 Then, on **staging only**, run `tests/06_data_fit_test.sql`. It checks every rule
 06 changed, then rolls everything back. The last line should say `ALL CHECKS PASSED`.

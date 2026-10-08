@@ -118,7 +118,7 @@ export function parseRow(raw: unknown[], mapping: Mapping, rowNumber: number): P
   /* ---------- the vendor ---------- */
   const legal = clean(get('legal_name'));
   if (!legal) add('no_legal_name', 'blocking', 'Vendor name is empty.', 'legal_name'); else company.legal_name = legal;
-  for (const k of ['trade_name', 'website', 'key_clients', 'bank_account_name', 'bank_branch', 'authorised_signatory', 'cin', 'udyam_number'] as const) {
+  for (const k of ['website', 'key_clients', 'bank_account_name', 'bank_branch', 'authorised_signatory', 'cin', 'udyam_number'] as const) {
     const v = clean(get(k)); if (v) company[k] = k === 'cin' || k === 'udyam_number' ? v.toUpperCase() : v;
   }
 
