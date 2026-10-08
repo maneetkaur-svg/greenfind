@@ -67,6 +67,36 @@ h1,h2,h3,h4 { color: var(--head); letter-spacing: -.02em; }
 .c-a { background: var(--warn-l); color: var(--warn-d); }
 .c-r { background: var(--err-l); color:#7F1D1D; }
 .c-n { background: var(--surface-2); color: var(--faint); border:1px solid var(--line); }
+/* A round icon badge, used on the dashboard's metric boxes and the
+   vendor-initials avatar in the list. Pass a size inline where it differs. */
+.icon-circle {
+  width: 42px; height: 42px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; font-weight: 700;
+}
+.icon-green  { background: #DCF7E5; color: #16A765; }
+.icon-blue   { background: #E3EDFF; color: #3982E9; }
+.icon-purple { background: #EEE5FF; color: #8051DC; }
+.icon-orange { background: #FFF0D8; color: #EF8B12; }
+.icon-teal   { background: #DEF4F2; color: #178D87; }
+.icon-grey   { background: #EDF0F4; color: #5B687C; }
+
+/* A metric box on the dashboard lifts slightly on hover, same as a card
+   link elsewhere, to hint it is clickable. */
+.metric-box { transition: transform .14s, box-shadow .14s; }
+.metric-box:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(20,42,35,.08); }
+
+/* Pagination, bottom of the vendor list. */
+.page-btn {
+  width: 32px; height: 32px; border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 600; color: var(--muted);
+}
+.page-btn:hover { background: var(--p50); color: var(--p700); }
+.page-btn.active { background: var(--p500); color: #fff; font-weight: 700; }
+.page-btn.disabled { color: var(--line-2); cursor: not-allowed; }
+.page-btn.disabled:hover { background: none; color: var(--line-2); }
+
 /* An extra border (and the ✓ prefix callers add) on a selected toggle chip —
    color alone was not obvious enough, especially c-g vs c-n. */
 .chip.tick { border: 1.5px solid var(--p600); font-weight: 800; }
