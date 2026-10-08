@@ -91,3 +91,36 @@ redacted.
   just from a local terminal instead of a Vercel server action.
 - Never invents a `document_type` code: the script checks `gst`, `pan`, `nda`, `cheque`
   and `udyam` exist before touching anything, and aborts if any are missing.
+
+## Other one-off scripts in this folder
+
+All of them share `.env.import`, the same `--dry-run` / `--allow-prod` convention, and
+write a report to `scripts/import/output/`.
+
+| Script | `npm run …` | What it does |
+|---|---|---|
+| `update-gstin.ts` | `import:gstin` | Fills a blank `vendor_site.gstin` from the sheet, matched by Vendor Code — never if the derived PAN would conflict with the company on record. |
+| `classify-industry.ts` | `classify:industry` | Classifies Unclassified vendors from Services text, falling back to the company's legal name. Only applies a confident, single-industry match. |
+| `backfill-fields.ts` | `backfill:fields` | Fills any other blank company/site field from the sheet (except `gstin`/`industry`/`pan`, which the two scripts above own) and upgrades `is_msme` to `true` on real evidence. |
+| `fill-bank-branch.ts` | `fill:bank-branch` | Fills a blank `company.bank_branch` by looking up the IFSC already on file against the public IFSC registry. |
+| `cleanup-vendors.ts` | `cleanup:vendors` | One-off: reclassifies a fixed list of exact Services-text values, and soft-deletes vendors whose Services text is an internal expense category rather than a real vendor type. The exact value lists are hardcoded for this specific cleanup — check them before re-running on different data. |
+| `verify-gst-bulk.ts` | `verify:gst-bulk` | Runs GST→entity-type verification (see below) against every existing company that has a GSTIN and no entity type yet. |
+
+## GST entity-type verification
+
+`lib/gstVerify.ts` (app code, not a script) calls Surepass's GST verification API for a
+GSTIN and maps the returned Constitution of Business onto `company.entity`
+(`proprietorship`/`partnership`/`pvt_ltd`/`public_ltd`/`llp` only — anything else is left
+alone, never guessed). Two things use it:
+
+- **Automatically**, for every new vendor — wired into `createVendor`
+  (`app/(app)/vendors/new/actions.ts`), best-effort: if it fails or times out, the vendor
+  is still created, just with entity type left blank.
+- **`verify-gst-bulk.ts`**, once, for every vendor that already existed before this was
+  added.
+
+Both need `SUREPASS_API_TOKEN` set — in `.env.import` for the bulk script, and in the
+actual app's environment (`.env.local` locally, Vercel's Environment Variables in
+production) for the automatic path. Without it, both fail closed with a clear message
+rather than silently doing nothing. The Entity type field on the Identity tab is
+display-only now — it is read automatically, not typed in.

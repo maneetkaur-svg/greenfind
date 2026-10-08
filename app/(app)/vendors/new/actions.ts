@@ -2,6 +2,7 @@
 import { revalidatePath } from 'next/cache';
 import { createClient, getMe } from '@/lib/supabase/server';
 import { panFromGstin, RX } from '@/lib/constants';
+import { verifyEntityFromGstin } from '@/lib/gstVerify';
 
 export type LookupResult =
   | { found: false }
@@ -132,6 +133,17 @@ export async function createVendor(p: VendorPayload): Promise<CreateResult> {
 
   if (Object.values(p.certificates).some(v => v !== null && v !== ''))
     await supabase.from('site_certificate_data').insert({ site_id: siteId, ...p.certificates });
+
+  // Best-effort: entity type is read off the GSTIN automatically. A slow or
+  // unreachable verification service never blocks or fails vendor creation —
+  // it just leaves entity blank for scripts/import/verify-gst-bulk.ts (or a
+  // later automatic retry) to pick up.
+  try {
+    const { data: co } = await supabase.from('company').select('entity').eq('id', companyId!).single();
+    if (!co?.entity) await verifyEntityFromGstin(supabase, companyId!, gstin);
+  } catch {
+    /* ignored — see above */
+  }
 
   revalidatePath('/vendors');
   return { siteId };

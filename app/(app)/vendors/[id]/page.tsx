@@ -275,7 +275,8 @@ async function VendorRecord({
         {section && (
           <SectionForm sectionId={section.id} values={source(section.table)}
                        siteId={id} companyId={site.company_id} readOnly={readOnly}
-                       isSuperAdmin={me.role === 'super_admin'} />
+                       isSuperAdmin={me.role === 'super_admin'}
+                       gstin={site.gstin as string | null} aadhaarLast4={site.aadhaar_last4 as string | null} />
         )}
         {active === 'contacts' && (
           <ContactsForm contacts={Array.isArray(contacts) ? contacts : []}
