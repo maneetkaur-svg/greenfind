@@ -60,8 +60,7 @@ export default async function VendorsPage({
     <>
       <div className="flex justify-between items-start gap-5 flex-wrap mb-5">
         <div>
-          <h1 className="text-[26px] font-bold">Vendor Management Tool</h1>
-          <p className="text-[13.5px] mt-1" style={{ color: 'var(--faint)' }}>
+          <p className="text-[13.5px]" style={{ color: 'var(--faint)' }}>
             {rows.length} site{rows.length === 1 ? '' : 's'} across {companies} compan{companies === 1 ? 'y' : 'ies'}
           </p>
           {me?.role !== 'user' && (
@@ -131,7 +130,7 @@ export default async function VendorsPage({
                       <Link href={`/vendors/${r.id}`} className="font-bold"
                             style={{ color: 'var(--head)' }}>{r.legal_name}</Link>
                       <div className="text-[12px]" style={{ color: 'var(--faint)' }}>
-                        {[r.site_code, r.legacy_vendor_code,
+                        {[r.legacy_vendor_code,
                           r.gstin ?? (r.aadhaar_last4 ? `Aadhaar ••••${r.aadhaar_last4}` : null)]
                           .filter(Boolean).join(' · ')}
                       </div>

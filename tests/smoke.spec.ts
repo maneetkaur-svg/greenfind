@@ -3,7 +3,8 @@ import { test, expect } from '@playwright/test';
 test.describe('the app loads at all', () => {
   test('vendor list opens', async ({ page }) => {
     await page.goto('/vendors');
-    await expect(page.getByRole('heading', { name: 'Vendor Master' })).toBeVisible();
+    await expect(page.getByText('Vendor Management Tool')).toBeVisible();
+    await expect(page.getByRole('link', { name: '+ Add vendor' })).toBeVisible();
   });
 
   test('add vendor opens with its steps', async ({ page }) => {

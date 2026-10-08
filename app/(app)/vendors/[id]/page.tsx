@@ -73,7 +73,7 @@ async function VendorRecord({
     supabase.from('site_operations').select('*').eq('site_id', id).maybeSingle(),
     supabase.from('site_certificate_data').select('*').eq('site_id', id).maybeSingle(),
     supabase.from('site_geography').select('state').eq('site_id', id),
-    supabase.from('vendor_site').select('id, site_code, city, state')
+    supabase.from('vendor_site').select('id, site_code, legacy_vendor_code, city, state')
       .eq('company_id', site.company_id).is('deleted_at', null).order('site_code'),
   ]);
 
@@ -204,7 +204,7 @@ async function VendorRecord({
         <div>
           <h1 className="text-[26px] font-bold">{company.legal_name}</h1>
           <p className="text-[13.5px] mt-1" style={{ color: 'var(--faint)' }}>
-            {[site.site_code, industryLabel, [site.city, site.state].filter(Boolean).join(', ') || null, site.gstin || (company.pan ? `PAN ${company.pan}` : null)].filter(Boolean).join(' · ')}
+            {[site.legacy_vendor_code, industryLabel, [site.city, site.state].filter(Boolean).join(', ') || null, site.gstin || (company.pan ? `PAN ${company.pan}` : null)].filter(Boolean).join(' · ')}
           </p>
         </div>
         <div className="flex gap-2 items-center">
@@ -236,13 +236,13 @@ async function VendorRecord({
 
       {Array.isArray(siblings) && siblings.length > 1 && (
         <div className="note mb-5">
-          <b>{company.company_code} has {siblings.length} sites.</b> Identity, banking and
+          <b>{company.legal_name} has {siblings.length} sites.</b> Identity, banking and
           agreements are shared. Address, certificates and contacts belong to this site.
           <div className="flex gap-2 mt-3 flex-wrap">
             {siblings.map(s => (
               <Link key={s.id} href={`/vendors/${s.id}`}
                     className={`chip ${s.id === id ? 'c-g' : 'c-n'}`}>
-                {s.site_code} · {s.city}
+                {s.legacy_vendor_code ? `${s.legacy_vendor_code} · ${s.city}` : s.city}
               </Link>
             ))}
           </div>

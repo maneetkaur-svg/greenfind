@@ -29,6 +29,33 @@ h1,h2,h3,h4 { color: var(--head); letter-spacing: -.02em; }
   border:2px solid currentColor; border-right-color:transparent; opacity:.85;
   animation: spin .6s linear infinite;
 }
+.spinner-lg {
+  display:inline-block; width:42px; height:42px; border-radius:50%;
+  border:4px solid var(--p500); border-right-color:transparent; opacity:.9;
+  animation: spin .7s linear infinite;
+}
+
+/* Shown automatically by app/(app)/loading.tsx while a page navigation is
+   still fetching — a translucent veil over whatever was on screen, plus a
+   spinner, rather than a jarring blank page. */
+.nav-loading-veil {
+  position: fixed; inset: 0; z-index: 100;
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  backdrop-filter: blur(1.5px);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+}
+.nav-loading-veil span.label { font-size: 13.5px; font-weight: 600; color: var(--muted); }
+
+/* The left sidebar's nav items. Brightens on hover; the active one stays lit. */
+.nav-tab {
+  display: block; padding: 10px 14px; border-radius: 9px;
+  font-size: 13.5px; font-weight: 700; color: var(--muted);
+  transition: background-color .12s, color .12s;
+}
+.nav-tab:hover { background: var(--p50); color: var(--p700); }
+.nav-tab.active { background: var(--p50); color: var(--p700); }
+.nav-tab.disabled { color: var(--faint); opacity: .6; cursor: not-allowed; }
+.nav-tab.disabled:hover { background: none; color: var(--faint); }
 .chip    { display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:700;
            padding:3px 9px; border-radius:999px; letter-spacing:.03em; white-space:nowrap; }
 .c-g { background: var(--p50); color: var(--p700); }
