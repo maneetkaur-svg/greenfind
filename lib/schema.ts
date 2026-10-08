@@ -39,13 +39,6 @@ const NDA_STATUS: [string, string][] = [['yes', 'Yes'], ['no', 'No'], ['inproces
 const CAP_UNITS: [string, string][] = [
   ['mt_day', 'MT per day'], ['mt_month', 'MT per month'], ['tpa', 'MT per year (TPA)'],
 ];
-const POLLUTION: [string, string][] = [
-  ['red', 'Red'], ['orange', 'Orange'], ['green', 'Green'], ['white', 'White'],
-];
-const EPR_TYPE: [string, string][] = [
-  ['recycler', 'Recycler'], ['coprocessor', 'Co-processor'],
-  ['pwp', 'Plastic waste processor'], ['pibo', 'PIBO'],
-];
 
 export const SECTIONS: Section[] = [
   {
@@ -208,32 +201,12 @@ export const SECTIONS: Section[] = [
     id: 'cto',
     label: 'Consent to Operate',
     table: 'site_certificate_data',
-    blurb: 'Read off the CTO. These values drive the evaluation.',
+    blurb: 'Read off the CTO.',
     industries: ['recycling'],
     fields: [
-      { key: 'cto_order_no', label: 'Order number', type: 'text', max: 60, half: true },
-      { key: 'cto_file_no', label: 'File number', type: 'text', max: 90, half: true },
-      { key: 'cto_board', label: 'Issuing board', type: 'text', max: 90, half: true },
-      { key: 'cto_unit_id', label: 'Unit ID', type: 'text', max: 30, half: true },
+      { key: 'cto_order_no', label: 'CTO number', type: 'text', max: 60, half: true },
       { key: 'cto_valid_from', label: 'Valid from', type: 'date', half: true },
-      { key: 'cto_valid_to', label: 'Valid until', type: 'date', half: true,
-        hint: 'The date the whole evaluation hangs off.' },
-      { key: 'cto_category', label: 'Pollution category', type: 'select', options: POLLUTION, half: true },
-      { key: 'cto_category_sr', label: 'Category serial number', type: 'text', max: 60, half: true },
-      { key: 'cto_product', label: 'Consented product', type: 'text', max: 150 },
-      { key: 'cto_capacity', label: 'Consented capacity', type: 'number', half: true },
-      { key: 'cto_capacity_unit', label: 'Capacity unit', type: 'select', options: CAP_UNITS, half: true },
-      { key: 'cto_fresh_water_kld', label: 'Fresh water permitted (KLD)', type: 'number', half: true },
-      { key: 'cto_groundwater', label: 'Source is groundwater', type: 'bool', half: true },
-      { key: 'cto_trade_effluent_kld', label: 'Trade effluent generated (KLD)', type: 'number', half: true },
-      { key: 'cto_effluent_recycled_kld', label: 'Trade effluent recycled (KLD)', type: 'number', half: true },
-      { key: 'cto_zld', label: 'Zero liquid discharge required', type: 'bool', half: true },
-      { key: 'cto_etp', label: 'ETP installed', type: 'bool', half: true },
-      { key: 'cto_green_belt_pct', label: 'Green belt required (%)', type: 'number', half: true },
-      { key: 'cto_project_cost_lakh', label: 'Project cost (₹ lakh)', type: 'number', half: true },
-      { key: 'cto_cgwa_required', label: 'CGWA groundwater NOC required', type: 'bool', half: true },
-      { key: 'cto_cgwa_obtained', label: 'CGWA NOC obtained', type: 'bool', half: true },
-      { key: 'cto_conditions', label: 'Conditions worth tracking', type: 'longtext' },
+      { key: 'cto_valid_to', label: 'Valid until', type: 'date', half: true },
     ],
   },
   {
@@ -246,23 +219,8 @@ export const SECTIONS: Section[] = [
       { key: 'epr_reg_no', label: 'Registration number', type: 'text', max: 60,
         placeholder: 'PR-31-RAJ-05-AYEPP3943P-24',
         hint: 'The PAN sits inside this number and is checked against the company.' },
-      { key: 'epr_board', label: 'Issuing board', type: 'text', max: 90, half: true },
-      { key: 'epr_type', label: 'Registered as', type: 'select', options: EPR_TYPE, half: true },
-      { key: 'epr_issue_date', label: 'Issue date', type: 'date', half: true },
-      { key: 'epr_valid_to', label: 'Valid until', type: 'date', half: true,
-        hint: 'PWP registrations run one year. Renewal is due 90 days before.' },
-      { key: 'epr_processing_code', label: 'Processing code', type: 'text', max: 20, half: true,
-        placeholder: 'R1' },
-      { key: 'epr_cat1', label: 'Cat-I capacity (TPA)', type: 'number', half: true },
-      { key: 'epr_cat2', label: 'Cat-II capacity (TPA)', type: 'number', half: true },
-      { key: 'epr_cat3', label: 'Cat-III capacity (TPA)', type: 'number', half: true },
-      { key: 'epr_cat4', label: 'Cat-IV capacity (TPA)', type: 'number', half: true },
-      { key: 'epr_product', label: 'Registered output product', type: 'text', max: 120, half: true },
-      { key: 'epr_product_qty', label: 'Output capacity (TPA)', type: 'number', half: true },
-      { key: 'intended_volume_tpa', label: 'Volume Fitsol intends to source (TPA)', type: 'number', half: true,
-        hint: 'Set by Fitsol. Never source beyond the consented capacity.' },
-      { key: 'epr_outstanding', label: 'Outstanding conditions', type: 'longtext',
-        placeholder: 'Unpaid fees, undertakings, anything still owed' },
+      { key: 'epr_issue_date', label: 'Valid from', type: 'date', half: true },
+      { key: 'epr_valid_to', label: 'Valid until', type: 'date', half: true },
     ],
   },
 ];

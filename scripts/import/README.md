@@ -108,8 +108,9 @@ write a report to `scripts/import/output/`.
 
 ## GST entity-type verification
 
-`lib/gstVerify.ts` (app code, not a script) calls Surepass's GST verification API for a
-GSTIN and maps the returned Constitution of Business onto `company.entity`
+`lib/gstVerify.ts` (app code, not a script) calls gstinapi.in's GSTIN verification API
+(`GET /v1/gstin/{gstin}`, free tier: 100 credits, 1 per successful lookup) and maps the
+returned `business_constitution` onto `company.entity`
 (`proprietorship`/`partnership`/`pvt_ltd`/`public_ltd`/`llp` only — anything else is left
 alone, never guessed). Two things use it:
 
@@ -119,7 +120,7 @@ alone, never guessed). Two things use it:
 - **`verify-gst-bulk.ts`**, once, for every vendor that already existed before this was
   added.
 
-Both need `SUREPASS_API_TOKEN` set — in `.env.import` for the bulk script, and in the
+Both need `GSTINAPI_TOKEN` set — in `.env.import` for the bulk script, and in the
 actual app's environment (`.env.local` locally, Vercel's Environment Variables in
 production) for the automatic path. Without it, both fail closed with a clear message
 rather than silently doing nothing. The Entity type field on the Identity tab is
