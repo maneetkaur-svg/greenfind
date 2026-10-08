@@ -17,7 +17,7 @@
     "backfill:fields": "tsx scripts/import/backfill-fields.ts",
     "fill:bank-branch": "tsx scripts/import/fill-bank-branch.ts",
     "cleanup:vendors": "tsx scripts/import/cleanup-vendors.ts",
-    "verify:gst-bulk": "tsx scripts/import/verify-gst-bulk.ts"
+    "extract:entity": "tsx scripts/import/extract-entity-from-certificates.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",
