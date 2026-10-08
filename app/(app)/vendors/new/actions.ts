@@ -46,7 +46,11 @@ export async function createVendor(p: VendorPayload): Promise<CreateResult> {
   const gstin = String(p.site.gstin ?? '').toUpperCase();
   const pan = panFromGstin(gstin);
   if (!pan) return { error: 'That GSTIN is not valid. Fifteen characters, with the PAN inside it.' };
-  if (!p.site.industry) return { error: 'Industry type is required.' };
+  // A brand-new, not-yet-formal industry has industry left null on purpose,
+  // with its name recorded in Services instead (see new/Wizard.tsx) — that
+  // still counts as "chosen", just not from the fixed picklist yet.
+  if (!p.site.industry && !String(p.site.services_text ?? '').trim())
+    return { error: 'Industry type is required.' };
   if (!p.site.address_line1) return { error: 'Address is required.' };
   if (!p.site.city) return { error: 'City is required.' };
   if (!p.site.state) return { error: 'State is required.' };

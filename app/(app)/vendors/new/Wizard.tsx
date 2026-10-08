@@ -34,6 +34,7 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
   const [ops, setOps] = useState<Vals>({});
   const [certs, setCerts] = useState<Vals>({});
   const [contacts, setContacts] = useState([{ ...blank }, { ...blank }, { ...blank }]);
+  const [showThirdContact, setShowThirdContact] = useState(false);
   const [geo, setGeo] = useState<string[]>([]);
   const [openRegions, setOpenRegions] = useState<string[]>([]);
   const [pickedCats, setPickedCats] = useState<string[]>([]);
@@ -44,6 +45,13 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
   const [error, setError] = useState('');
   const [files, setFiles] = useState<Record<string, Pending>>({});
   const [uploading, setUploading] = useState('');
+  const [customIndustryMode, setCustomIndustryMode] = useState(false);
+  const [customIndustryText, setCustomIndustryText] = useState('');
+  /* Extra, freely-labelled documents added from the Documents step's
+     "+ Add more documents" — each becomes its own 'other'-type upload,
+     none of them superseding each other (see sql/15_other_document_type.sql). */
+  const [extraFiles, setExtraFiles] = useState<{ id: string; label: string; file: File | null }[]>([]);
+  const [addingExtra, setAddingExtra] = useState(false);
 
   const gstin = String(site.gstin ?? '');
   const pan = panFromGstin(gstin);
@@ -103,6 +111,74 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
 
   const current = steps[Math.min(step, steps.length - 1)];
 
+  /* Document types asked for right on the step their field lives on — GST
+     and PAN on Identity, Udyam on Identity when MSME, cancelled cheque on
+     Banking, CTO/EPR certificates on their own steps. The Documents step
+     itself only shows these as a status summary, plus anything left over
+     (Company profile) and the free-form "add more" flow. */
+  const CONTEXTUAL_DOC_CODES = ['gst', 'pan', 'udyam', 'cheque', 'nda', 'cto', 'epr'];
+
+  const renderDocCard = (code: string) => {
+    const d = docs.find(x => x.code === code);
+    if (!d) return null;
+    const chosen = files[d.code];
+    return (
+      <div key={d.code} className="card p-4 mb-3"
+           style={chosen ? { borderColor: 'var(--p400)', background: 'var(--p50)' } : undefined}>
+        <div className="flex justify-between items-start gap-3 mb-3 flex-wrap">
+          <div>
+            <div className="text-[13.5px] font-bold" style={{ color: 'var(--head)' }}>{d.label}</div>
+            <div className="text-[12px]" style={{ color: 'var(--faint)' }}>
+              {d.applies_to}
+              {d.expiry_tracked && ' · expiry tracked'}
+              {d.uploaded_by_party === 'fitsol' && ' · issued by Fitsol, usually added later'}
+            </div>
+          </div>
+          <span className={`chip ${d.level === 'required' ? 'c-r' : d.level === 'conditional' ? 'c-a' : 'c-n'}`}>
+            {d.level.toUpperCase()}
+          </span>
+        </div>
+
+        <div className="grid md:grid-cols-3 gap-4">
+          <div className={d.expiry_tracked ? '' : 'md:col-span-2'}>
+            <label className="lab" htmlFor={`wf_${d.code}`}>File</label>
+            <input id={`wf_${d.code}`} type="file"
+                   accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*"
+                   onChange={e => {
+                     const f = e.target.files?.[0];
+                     setFiles(p => {
+                       const n = { ...p };
+                       if (f) n[d.code] = { file: f, number: p[d.code]?.number ?? '', validUntil: p[d.code]?.validUntil ?? '' };
+                       else delete n[d.code];
+                       return n;
+                     });
+                   }} />
+          </div>
+          <div>
+            <label className="lab" htmlFor={`wn_${d.code}`}>Document number</label>
+            <input id={`wn_${d.code}`} maxLength={60} placeholder="As printed on it"
+                   value={chosen?.number ?? ''}
+                   onChange={e => setFiles(p => chosen ? { ...p, [d.code]: { ...chosen, number: e.target.value } } : p)} />
+          </div>
+          {d.expiry_tracked && (
+            <div>
+              <label className="lab" htmlFor={`wv_${d.code}`}>Valid until</label>
+              <input id={`wv_${d.code}`} type="date"
+                     value={chosen?.validUntil ?? ''}
+                     onChange={e => setFiles(p => chosen ? { ...p, [d.code]: { ...chosen, validUntil: e.target.value } } : p)} />
+            </div>
+          )}
+        </div>
+
+        {chosen && (
+          <div className="hint mt-2">
+            {chosen.file.name} · {(chosen.file.size / 1024).toFixed(0)} KB, ready to upload
+          </div>
+        )}
+      </div>
+    );
+  };
+
   /* ---------- Problems, gathered but never blocking ----------
      You can move around freely and fill things in any order. Everything is
      checked once, at the end, and each problem says which step it is on. */
@@ -111,7 +187,9 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
     const out: { step: number; text: string }[] = [];
 
     if (!pan) out.push({ step: at('identity'), text: 'Enter a valid GSTIN.' });
-    if (!industry) out.push({ step: at('identity'), text: 'Choose an industry type.' });
+    if (customIndustryMode) {
+      if (!customIndustryText.trim()) out.push({ step: at('identity'), text: 'Type the new industry name.' });
+    } else if (!industry) out.push({ step: at('identity'), text: 'Choose an industry type.' });
     if (!linked && !company.legal_name)
       out.push({ step: at('identity'), text: 'Legal name is required.' });
     if (!linked && company.is_msme === true && (!company.msme_category || !company.udyam_number))
@@ -136,21 +214,43 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
     }
 
     const ifsc = String(company.ifsc ?? '');
-    if (ifsc && !RX.ifsc.test(ifsc.toUpperCase()))
-      out.push({ step: at('banking'), text: 'IFSC must be eleven characters, like HDFC0000432.' });
+    if (!linked) {
+      if (!company.bank_account_name) out.push({ step: at('banking'), text: 'Bank account name is required.' });
+      if (!company.bank_account_number) out.push({ step: at('banking'), text: 'Account number is required.' });
+      if (!ifsc) out.push({ step: at('banking'), text: 'IFSC is required.' });
+      else if (!RX.ifsc.test(ifsc.toUpperCase()))
+        out.push({ step: at('banking'), text: 'IFSC must be eleven characters, like HDFC0000432.' });
+      if (!company.bank_branch) out.push({ step: at('banking'), text: 'Bank and branch is required.' });
+    }
 
     return out;
   };
 
   const [issues, setIssues] = useState<{ step: number; text: string }[]>([]);
 
-  /* Any step, any order. Nothing is gated. */
-  const go = (i: number) => {
-    setError(''); setStep(Math.max(0, Math.min(i, steps.length - 1)));
+  /* Moving backward, or to a step already reached, is always free. Moving
+     forward is gated: the step you are leaving must have nothing mandatory
+     still blank, so "Continue" (or jumping ahead in the side list) only
+     reveals the next section once this one is actually done. */
+  const go = (i: number, force = false) => {
+    if (!force && i > step) {
+      const here = problems().filter(p => p.step === step);
+      if (here.length) {
+        setIssues(here);
+        setError(`${here.length} thing${here.length === 1 ? '' : 's'} to fix on this step before continuing.`);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+    }
+    setIssues([]); setError(''); setStep(Math.max(0, Math.min(i, steps.length - 1)));
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
   const next = () => go(step + 1);
   const back = () => go(step - 1);
+  /* The one deliberate escape hatch: see the whole outstanding list without
+     having to clear every step in order first. It does not skip filling
+     anything in — submit() still runs the same full check. */
+  const skipToReview = () => go(steps.length - 1, true);
 
   const submit = async () => {
     const found = problems();
@@ -162,10 +262,17 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
     }
     setIssues([]);
     setBusy(true); setError('');
+    // A typed, not-yet-formal industry never goes into the industry column —
+    // that would crash against the fixed picklist. It goes into Services
+    // instead, which the vendor list and dashboard already fall back to
+    // (shown as its own chip, counted under "Others").
+    const sitePayload = customIndustryMode
+      ? { ...site, industry: null, services_text: customIndustryText.trim() }
+      : site;
     const res = await createVendor({
       linkCompanyId: linkTo,
       company: linked ? {} : company,
-      site, operations: ops, certificates: certs,
+      site: sitePayload, operations: ops, certificates: certs,
       contacts: contacts.map((c, i) => ({ ...c, rank: i + 1 })),
       geography: geo, categories: pickedCats, subcategories: pickedSubs,
     });
@@ -173,10 +280,13 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
 
     // The vendor exists now, so the held files finally have somewhere to go.
     const entries = Object.entries(files);
+    const extras = extraFiles.filter((x): x is { id: string; label: string; file: File } => x.id !== 'draft' && !!x.file);
+    const total = entries.length + extras.length;
     const failed: string[] = [];
-    for (let i = 0; i < entries.length; i++) {
-      const [code, f] = entries[i];
-      setUploading(`Uploading ${f.file.name} (${i + 1} of ${entries.length})…`);
+    let done = 0;
+    for (const [code, f] of entries) {
+      done++;
+      setUploading(`Uploading ${f.file.name} (${done} of ${total})…`);
       const fd = new FormData();
       fd.set('site_id', res.siteId!);
       fd.set('doc_type', code);
@@ -185,6 +295,20 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
       fd.set('valid_until', f.validUntil);
       const up = await uploadDocument({}, fd);
       if (up.error) failed.push(`${code}: ${up.error}`);
+    }
+    // Free-form extras all share doc_type 'other' — none of them supersede
+    // each other (sql/15_other_document_type.sql) — with the typed label
+    // carried in doc_number, same column every other document uses for it.
+    for (const x of extras) {
+      done++;
+      setUploading(`Uploading ${x.file.name} (${done} of ${total})…`);
+      const fd = new FormData();
+      fd.set('site_id', res.siteId!);
+      fd.set('doc_type', 'other');
+      fd.set('file', x.file);
+      fd.set('doc_number', x.label);
+      const up = await uploadDocument({}, fd);
+      if (up.error) failed.push(`${x.label}: ${up.error}`);
     }
     setUploading('');
     setBusy(false);
@@ -199,12 +323,11 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
   };
 
   /* ---------- registration step fields ---------- */
+  const industryOptions = sec('site').fields.find(f => f.key === 'industry')!.options;
   const regFields: Field[] = [
     { key: 'gstin', label: 'GSTIN', type: 'text', required: true, max: 15,
       placeholder: '08AYEPP3943P1ZK',
       hint: 'The PAN sits inside it, which is how the company is recognised.' },
-    { key: 'industry', label: 'Industry type', type: 'select', required: true, half: true,
-      options: sec('site').fields.find(f => f.key === 'industry')!.options },
     { key: 'site_name', label: 'Site name', type: 'text', max: 120, half: true,
       placeholder: 'Khushkhera Unit' },
   ];
@@ -340,6 +463,41 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
                          onChange={(k, v) => setSite(p => ({ ...p, [k]: k === 'gstin'
                            ? String(v).toUpperCase() : v }))} />
               {gstinBad && <div className="err">Fifteen characters: two-digit state code, ten-character PAN, then three more.</div>}
+
+              <div className="mt-4">
+                <label className="lab" htmlFor="industry_select">
+                  Industry type <span className="req">*</span>
+                </label>
+                {!customIndustryMode ? (
+                  <>
+                    <select id="industry_select" value={String(site.industry ?? '')}
+                            onChange={e => setSite(p => ({ ...p, industry: e.target.value }))}>
+                      <option value="">Select…</option>
+                      {industryOptions!.map(([val, lab]) => <option key={val} value={val}>{lab}</option>)}
+                    </select>
+                    <button type="button" className="text-[12.5px] font-semibold mt-2"
+                            style={{ color: 'var(--p600)' }}
+                            onClick={() => { setCustomIndustryMode(true); setSite(p => ({ ...p, industry: '' })); }}>
+                      + Add a new industry type
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <input id="industry_select" value={customIndustryText} maxLength={60}
+                           placeholder="e.g. Cold Storage"
+                           onChange={e => setCustomIndustryText(e.target.value)} />
+                    <div className="hint mt-1">
+                      Not yet a formal category — this vendor shows under &ldquo;Others&rdquo;
+                      on the dashboard until it is added properly.
+                    </div>
+                    <button type="button" className="text-[12.5px] font-semibold mt-2"
+                            style={{ color: 'var(--faint)' }}
+                            onClick={() => { setCustomIndustryMode(false); setCustomIndustryText(''); }}>
+                      Use the existing list instead
+                    </button>
+                  </>
+                )}
+              </div>
               {pan && !gstinBad && (
                 <div className="hint">PAN <b>{pan}</b>{gstState && <> · {gstState}</>}</div>
               )}
@@ -388,6 +546,12 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
                     values={company}
                     onChange={(k, v) => setCompany(p => ({ ...p, [k]: v }))} />
                   <div className="hint mt-3">PAN will be {pan ?? 'taken from the GSTIN'}.</div>
+
+                  <div className="mt-5">
+                    {renderDocCard('gst')}
+                    {renderDocCard('pan')}
+                    {company.is_msme === true && renderDocCard('udyam')}
+                  </div>
                 </div>
               )}
             </>
@@ -416,30 +580,31 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
               </p>
               <div className="flex gap-2 flex-wrap mb-4">
                 <button type="button"
-                        className={`chip ${geo.length === STATES.length ? 'c-g' : 'c-n'}`}
+                        className={`chip ${geo.length === STATES.length ? 'c-g tick' : 'c-n'}`}
                         style={{ padding: '7px 14px', fontSize: 13, cursor: 'pointer' }}
                         onClick={() => {
                           if (geo.length === STATES.length) { setGeo([]); setOpenRegions([]); }
                           else { setGeo([...STATES]); setOpenRegions(REGIONS.map(r => r[0])); }
-                        }}>Pan India</button>
+                        }}>{geo.length === STATES.length && '✓ '}Pan India</button>
                 {REGIONS.map(([code, label, sts]) => {
                   const on = openRegions.includes(code);
                   const n = sts.filter(s => geo.includes(s)).length;
+                  const full = n === sts.length;
                   return (
                     <button key={code} type="button"
-                            className={`chip ${on ? 'c-g' : 'c-n'}`}
+                            className={`chip ${on ? (full ? 'c-g tick' : 'c-a') : 'c-n'}`}
                             style={{ padding: '7px 14px', fontSize: 13, cursor: 'pointer' }}
                             onClick={() => toggleRegion(code, sts)}>
-                      {label}{on && ` · ${n}/${sts.length}`}
+                      {on && full && '✓ '}{label}{on && ` · ${n}/${sts.length}`}
                     </button>
                   );
                 })}
                 <button type="button"
-                        className={`chip ${site.geo_outside_india === true ? 'c-g' : 'c-n'}`}
+                        className={`chip ${site.geo_outside_india === true ? 'c-g tick' : 'c-n'}`}
                         style={{ padding: '7px 14px', fontSize: 13, cursor: 'pointer' }}
                         onClick={() => setSite(p => ({ ...p,
                           geo_outside_india: p.geo_outside_india === true ? false : true }))}>
-                  Outside India
+                  {site.geo_outside_india === true && '✓ '}Outside India
                 </button>
               </div>
               {openRegions.map(code => {
@@ -449,15 +614,18 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
                   <div key={code} className="card p-4 mb-3" style={{ background: 'var(--surface-2)' }}>
                     <div className="text-[13px] font-bold mb-3" style={{ color: 'var(--head)' }}>{r[1]}</div>
                     <div className="flex gap-2 flex-wrap">
-                      {r[2].map(s => (
-                        <button key={s} type="button"
-                                className={`chip ${geo.includes(s) ? 'c-g' : 'c-n'}`}
-                                style={{ padding: '6px 12px', fontSize: 12.5, cursor: 'pointer' }}
-                                onClick={() => setGeo(p =>
-                                  p.includes(s) ? p.filter(x => x !== s) : [...p, s])}>
-                          {s}
-                        </button>
-                      ))}
+                      {r[2].map(s => {
+                        const picked = geo.includes(s);
+                        return (
+                          <button key={s} type="button"
+                                  className={`chip ${picked ? 'c-g tick' : 'c-n'}`}
+                                  style={{ padding: '6px 12px', fontSize: 12.5, cursor: 'pointer' }}
+                                  onClick={() => setGeo(p =>
+                                    p.includes(s) ? p.filter(x => x !== s) : [...p, s])}>
+                            {picked && '✓ '}{s}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 );
@@ -469,9 +637,11 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
           {current.id === 'contacts' && (
             <>
               <p className="text-[13.5px] mb-4" style={{ color: 'var(--faint)' }}>
-                Two are required. A third is there if you have one.
+                Two are required.
               </p>
-              {['Primary contact', 'Secondary contact', 'Other contact'].map((title, i) => (
+              {['Primary contact', 'Secondary contact', 'Other contact']
+                .slice(0, showThirdContact ? 3 : 2)
+                .map((title, i) => (
                 <div key={i} className={i > 0 ? 'mt-6 pt-5 border-t' : ''}
                      style={i > 0 ? { borderColor: 'var(--line)' } : undefined}>
                   <div className="text-[11px] font-bold uppercase tracking-[.07em] mb-3"
@@ -495,6 +665,12 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
                   </div>
                 </div>
               ))}
+              {!showThirdContact && (
+                <button type="button" className="btn btn-o mt-5"
+                        onClick={() => setShowThirdContact(true)}>
+                  + Add another contact
+                </button>
+              )}
             </>
           )}
 
@@ -521,6 +697,8 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
                 </p>
                 <FieldGrid fields={sec(current.id).fields} values={company}
                            onChange={(k, v) => setCompany(p => ({ ...p, [k]: v }))} />
+                {current.id === 'banking' && renderDocCard('cheque')}
+                {current.id === 'agreements' && renderDocCard('nda')}
               </>
             )
           )}
@@ -533,93 +711,122 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
               </p>
               <FieldGrid fields={sec(current.id).fields} values={certs}
                          onChange={(k, v) => setCerts(p => ({ ...p, [k]: v }))} />
+              {renderDocCard(current.id)}
             </>
           )}
 
           {current.id === 'documents' && (
             <>
               <p className="text-[13.5px] mb-4" style={{ color: 'var(--faint)' }}>
-                Attach what you have. Anything missing can be added on the record
-                afterwards — none of this blocks creating the vendor. PDF, JPG or PNG,
-                up to 10 MB each.
+                Most documents were already asked for on the step they belong to —
+                here is where things stand, plus anything extra. Nothing here blocks
+                creating the vendor. PDF, JPG or PNG, up to 10 MB each.
               </p>
 
-              {docs.map(d => {
-                const chosen = files[d.code];
-                return (
-                  <div key={d.code} className="card p-4 mb-3"
-                       style={chosen ? { borderColor: 'var(--p400)', background: 'var(--p50)' } : undefined}>
-                    <div className="flex justify-between items-start gap-3 mb-3 flex-wrap">
-                      <div>
-                        <div className="text-[13.5px] font-bold" style={{ color: 'var(--head)' }}>
-                          {d.label}
+              {docs.filter(d => CONTEXTUAL_DOC_CODES.includes(d.code)).length > 0 && (
+                <div className="card p-4 mb-4" style={{ background: 'var(--surface-2)' }}>
+                  <div className="text-[11px] font-bold uppercase tracking-[.07em] mb-3"
+                       style={{ color: 'var(--faint)' }}>Already asked for, elsewhere in this form</div>
+                  <div className="grid gap-2">
+                    {docs.filter(d => CONTEXTUAL_DOC_CODES.includes(d.code)).map(d => {
+                      const ready = !!files[d.code];
+                      const stepId = d.code === 'gst' || d.code === 'pan' || d.code === 'udyam' ? 'identity'
+                        : d.code === 'cheque' ? 'banking' : d.code === 'nda' ? 'agreements' : d.code;
+                      return (
+                        <div key={d.code} className="flex items-center justify-between gap-3">
+                          <span className="text-[13px]" style={{ color: 'var(--head)' }}>
+                            {ready ? '✓ ' : '○ '}{d.label}
+                          </span>
+                          <button type="button" className="text-[12.5px] font-semibold"
+                                  style={{ color: 'var(--p600)' }}
+                                  onClick={() => go(steps.findIndex(s => s.id === stepId), true)}>
+                            {ready ? 'View' : 'Go add it'}
+                          </button>
                         </div>
-                        <div className="text-[12px]" style={{ color: 'var(--faint)' }}>
-                          {d.applies_to}
-                          {d.expiry_tracked && ' · expiry tracked'}
-                          {d.uploaded_by_party === 'fitsol' && ' · issued by Fitsol, usually added later'}
-                        </div>
-                      </div>
-                      <span className={`chip ${d.level === 'required' ? 'c-r'
-                        : d.level === 'conditional' ? 'c-a' : 'c-n'}`}>
-                        {d.level.toUpperCase()}
-                      </span>
-                    </div>
-
-                    <div className="grid md:grid-cols-3 gap-4">
-                      <div className={d.expiry_tracked ? '' : 'md:col-span-2'}>
-                        <label className="lab" htmlFor={`wf_${d.code}`}>File</label>
-                        <input id={`wf_${d.code}`} type="file"
-                               accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*"
-                               onChange={e => {
-                                 const f = e.target.files?.[0];
-                                 setFiles(p => {
-                                   const n = { ...p };
-                                   if (f) n[d.code] = { file: f,
-                                     number: p[d.code]?.number ?? '',
-                                     validUntil: p[d.code]?.validUntil ?? '' };
-                                   else delete n[d.code];
-                                   return n;
-                                 });
-                               }} />
-                      </div>
-                      <div>
-                        <label className="lab" htmlFor={`wn_${d.code}`}>Document number</label>
-                        <input id={`wn_${d.code}`} maxLength={60} placeholder="As printed on it"
-                               value={chosen?.number ?? ''}
-                               onChange={e => setFiles(p => chosen
-                                 ? { ...p, [d.code]: { ...chosen, number: e.target.value } } : p)} />
-                      </div>
-                      {d.expiry_tracked && (
-                        <div>
-                          <label className="lab" htmlFor={`wv_${d.code}`}>Valid until</label>
-                          <input id={`wv_${d.code}`} type="date"
-                                 value={chosen?.validUntil ?? ''}
-                                 onChange={e => setFiles(p => chosen
-                                   ? { ...p, [d.code]: { ...chosen, validUntil: e.target.value } } : p)} />
-                        </div>
-                      )}
-                    </div>
-
-                    {chosen && (
-                      <div className="hint mt-2">
-                        {chosen.file.name} · {(chosen.file.size / 1024).toFixed(0)} KB, ready to upload
-                      </div>
-                    )}
+                      );
+                    })}
                   </div>
-                );
-              })}
+                </div>
+              )}
+
+              {docs.filter(d => !CONTEXTUAL_DOC_CODES.includes(d.code)).map(d => renderDocCard(d.code))}
+
+              <div className="card p-4 mb-3">
+                <div className="flex justify-between items-center gap-3 flex-wrap">
+                  <div>
+                    <div className="text-[13.5px] font-bold" style={{ color: 'var(--head)' }}>
+                      Anything else
+                    </div>
+                    <div className="text-[12px]" style={{ color: 'var(--faint)' }}>
+                      ISO certificates, a rate card — whatever else is worth attaching.
+                    </div>
+                  </div>
+                  {!addingExtra && (
+                    <button type="button" className="btn btn-o" onClick={() => setAddingExtra(true)}>
+                      + Add more documents
+                    </button>
+                  )}
+                </div>
+
+                {extraFiles.map(x => (
+                  <div key={x.id} className="flex items-center justify-between gap-3 mt-3 pt-3 border-t"
+                       style={{ borderColor: 'var(--line)' }}>
+                    <span className="text-[13px]" style={{ color: 'var(--head)' }}>
+                      {x.label}{x.file && <span style={{ color: 'var(--faint)' }}> · {x.file.name}</span>}
+                    </span>
+                    <button type="button" className="text-[12.5px] font-semibold" style={{ color: 'var(--err)' }}
+                            onClick={() => setExtraFiles(p => p.filter(e => e.id !== x.id))}>
+                      Remove
+                    </button>
+                  </div>
+                ))}
+
+                {addingExtra && (
+                  <div className="grid md:grid-cols-3 gap-4 mt-4 pt-4 border-t" style={{ borderColor: 'var(--line)' }}>
+                    <div className="md:col-span-2">
+                      <label className="lab" htmlFor="extra_label">What document is this?</label>
+                      <input id="extra_label" placeholder="e.g. ISO 14001 certificate"
+                             value={extraFiles.find(x => x.id === 'draft')?.label ?? ''}
+                             onChange={e => setExtraFiles(p => {
+                               const rest = p.filter(x => x.id !== 'draft');
+                               return [...rest, { id: 'draft', label: e.target.value, file: p.find(x => x.id === 'draft')?.file ?? null }];
+                             })} />
+                    </div>
+                    <div>
+                      <label className="lab" htmlFor="extra_file">File</label>
+                      <input id="extra_file" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*"
+                             onChange={e => {
+                               const f = e.target.files?.[0] ?? null;
+                               setExtraFiles(p => {
+                                 const rest = p.filter(x => x.id !== 'draft');
+                                 return [...rest, { id: 'draft', label: p.find(x => x.id === 'draft')?.label ?? '', file: f }];
+                               });
+                             }} />
+                    </div>
+                    <div className="md:col-span-3 flex gap-3">
+                      <button type="button" className="btn btn-p"
+                              disabled={!extraFiles.find(x => x.id === 'draft')?.label.trim() || !extraFiles.find(x => x.id === 'draft')?.file}
+                              onClick={() => {
+                                const draft = extraFiles.find(x => x.id === 'draft');
+                                if (!draft?.label.trim() || !draft.file) return;
+                                setExtraFiles(p => [...p.filter(x => x.id !== 'draft'),
+                                  { id: `extra_${Date.now()}`, label: draft.label.trim(), file: draft.file }]);
+                                setAddingExtra(false);
+                              }}>
+                        Add
+                      </button>
+                      <button type="button" className="btn btn-o"
+                              onClick={() => { setExtraFiles(p => p.filter(x => x.id !== 'draft')); setAddingExtra(false); }}>
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {!docs.length && (
                 <div className="note a">
                   No document rules are set up. Run <b>03_reference_data.sql</b> in Supabase.
-                </div>
-              )}
-
-              {!industry && (
-                <div className="note">
-                  Showing the documents every vendor needs. Choose an industry type in
-                  step 1 and any extra ones for it appear here too.
                 </div>
               )}
             </>
@@ -635,7 +842,9 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
                   ['Company', linked ? `${parent?.legal_name} (linked)` : String(company.legal_name ?? '—')],
                   ['GSTIN', gstin || '—'],
                   ['PAN', pan ?? '—'],
-                  ['Industry', String(site.industry ?? '—')],
+                  ['Industry', customIndustryMode
+                    ? (customIndustryText.trim() ? `${customIndustryText.trim()} (new, shows under Others)` : '—')
+                    : String(site.industry ?? '—')],
                   ['Address', [site.address_line1, site.city, site.state, site.pincode]
                     .filter(Boolean).join(', ') || '—'],
                   ['Contacts', contacts.filter(c => c.name.trim()).map(c => c.name).join(', ') || '—'],
@@ -643,8 +852,8 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
                   ['Service categories', pickedCats.length
                     ? industryCats.filter(c => pickedCats.includes(c.id)).map(c => c.label).join(', ')
                     : '—'],
-                  ['Documents ready', Object.keys(files).length
-                    ? `${Object.keys(files).length} file${Object.keys(files).length === 1 ? '' : 's'}`
+                  ['Documents ready', (Object.keys(files).length + extraFiles.filter(x => x.id !== 'draft').length) > 0
+                    ? `${Object.keys(files).length + extraFiles.filter(x => x.id !== 'draft').length} file${(Object.keys(files).length + extraFiles.filter(x => x.id !== 'draft').length) === 1 ? '' : 's'}`
                     : 'None yet'],
                 ].map(([k, v]) => (
                   <div key={k}>
@@ -669,7 +878,7 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
             </button>
             <div className="flex gap-3 flex-wrap">
               {current.id !== 'review' && (
-                <button type="button" className="btn btn-o" onClick={() => go(steps.length - 1)}>
+                <button type="button" className="btn btn-o" onClick={skipToReview}>
                   Skip to review
                 </button>
               )}

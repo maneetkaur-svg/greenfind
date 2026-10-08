@@ -9,6 +9,7 @@ import GeographyForm from './GeographyForm';
 import CategoriesForm, { type Cat } from './CategoriesForm';
 import DocumentsTab, { type DocType, type DocRow } from './DocumentsTab';
 import NdaPanel from './NdaPanel';
+import InlineDocUpload from './InlineDocUpload';
 
 /** The whole page in a try/catch, so a server error shows its message instead
  *  of the blank digest page Next.js gives in production. */
@@ -176,6 +177,12 @@ async function VendorRecord({
   const active = tabs.find(t => t.id === tab)?.id ?? tabs[0].id;
   const section = sections.find(s => s.id === active);
 
+  // So the relevant document can be asked for right on the tab its field
+  // lives on (GST cert on Identity, cancelled cheque on Banking, and so on)
+  // instead of only in one consolidated Documents tab.
+  const docTypeMeta = (code: string) => docTypes.find(t => t.code === code);
+  const docFor = (code: string) => docs.find(d => d.doc_type === code) ?? null;
+
   const source = (table: string): Record<string, unknown> =>
     table === 'company' ? (company ?? {})
       : table === 'vendor_site' ? site
@@ -271,6 +278,31 @@ async function VendorRecord({
           <NdaPanel siteId={id} readOnly={readOnly}
                     signatory={(company.authorised_signatory as string) ?? null}
                     signed={docs.find(d => d.doc_type === 'nda') ?? null} />
+        )}
+        {active === 'identity' && docTypeMeta('gst') && (
+          <InlineDocUpload siteId={id} docType="gst" label={docTypeMeta('gst')!.label}
+                            doc={docFor('gst')} expiryTracked={false} readOnly={readOnly} />
+        )}
+        {active === 'identity' && docTypeMeta('pan') && (
+          <InlineDocUpload siteId={id} docType="pan" label={docTypeMeta('pan')!.label}
+                            doc={docFor('pan')} expiryTracked={false} readOnly={readOnly} />
+        )}
+        {active === 'identity' && company.is_msme === true && docTypeMeta('udyam') && (
+          <InlineDocUpload siteId={id} docType="udyam" label={docTypeMeta('udyam')!.label}
+                            doc={docFor('udyam')} expiryTracked={false} readOnly={readOnly} />
+        )}
+        {active === 'banking' && docTypeMeta('cheque') && (
+          <InlineDocUpload siteId={id} docType="cheque" label={docTypeMeta('cheque')!.label}
+                            hint="Must be on file before any payment is released."
+                            doc={docFor('cheque')} expiryTracked={false} readOnly={readOnly} />
+        )}
+        {active === 'cto' && docTypeMeta('cto') && (
+          <InlineDocUpload siteId={id} docType="cto" label={docTypeMeta('cto')!.label}
+                            doc={docFor('cto')} expiryTracked={true} readOnly={readOnly} />
+        )}
+        {active === 'epr' && docTypeMeta('epr') && (
+          <InlineDocUpload siteId={id} docType="epr" label={docTypeMeta('epr')!.label}
+                            doc={docFor('epr')} expiryTracked={true} readOnly={readOnly} />
         )}
         {section && (
           <SectionForm sectionId={section.id} values={source(section.table)}

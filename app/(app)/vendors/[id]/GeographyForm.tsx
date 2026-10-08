@@ -42,24 +42,25 @@ export default function GeographyForm({
 
       <div className="flex gap-2 flex-wrap mb-4">
         <button type="button" disabled={readOnly}
-                className={`chip ${panIndia ? 'c-g' : 'c-n'}`}
+                className={`chip ${panIndia ? 'c-g tick' : 'c-n'}`}
                 style={{ padding: '7px 14px', fontSize: 13, cursor: readOnly ? 'default' : 'pointer' }}
                 onClick={() => {
                   if (readOnly) return;
                   if (panIndia) { setPicked([]); setOpenRegions([]); }
                   else { setPicked([...STATES]); setOpenRegions(REGIONS.map(r => r[0])); }
                 }}>
-          Pan India
+          {panIndia && '✓ '}Pan India
         </button>
         {REGIONS.map(([code, label, sts]) => {
           const on = openRegions.includes(code);
           const n = sts.filter(s => picked.includes(s)).length;
+          const full = n === sts.length;
           return (
             <button key={code} type="button" disabled={readOnly}
-                    className={`chip ${on ? 'c-g' : 'c-n'}`}
+                    className={`chip ${on ? (full ? 'c-g tick' : 'c-a') : 'c-n'}`}
                     style={{ padding: '7px 14px', fontSize: 13, cursor: readOnly ? 'default' : 'pointer' }}
                     onClick={() => toggleRegion(code, sts)}>
-              {label}{on && ` · ${n}/${sts.length}`}
+              {on && full && '✓ '}{label}{on && ` · ${n}/${sts.length}`}
             </button>
           );
         })}
@@ -73,14 +74,17 @@ export default function GeographyForm({
           <div key={code} className="card p-4 mb-3" style={{ background: 'var(--surface-2)' }}>
             <div className="text-[13px] font-bold mb-3" style={{ color: 'var(--head)' }}>{label}</div>
             <div className="flex gap-2 flex-wrap">
-              {sts.map(s => (
-                <button key={s} type="button" disabled={readOnly}
-                        className={`chip ${picked.includes(s) ? 'c-g' : 'c-n'}`}
-                        style={{ padding: '6px 12px', fontSize: 12.5, cursor: readOnly ? 'default' : 'pointer' }}
-                        onClick={() => toggleState(s)}>
-                  {s}
-                </button>
-              ))}
+              {sts.map(s => {
+                const on = picked.includes(s);
+                return (
+                  <button key={s} type="button" disabled={readOnly}
+                          className={`chip ${on ? 'c-g tick' : 'c-n'}`}
+                          style={{ padding: '6px 12px', fontSize: 12.5, cursor: readOnly ? 'default' : 'pointer' }}
+                          onClick={() => toggleState(s)}>
+                    {on && '✓ '}{s}
+                  </button>
+                );
+              })}
             </div>
           </div>
         );
