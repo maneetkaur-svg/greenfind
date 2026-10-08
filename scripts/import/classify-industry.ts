@@ -7,10 +7,10 @@
  * turned out to be finance expense categories ("Opex", "Material Trading",
  * "Office Expenses") rather than a description of what they do, so this
  * tries, in order, until one gives a confident single match: Services text,
- * then the company's legal name, then its trade name — "OM LOGISTIC" and
- * "Eco Recycling Plant" classify correctly from their name even though their
- * Services column carries no signal at all. Each report row says which
- * source actually matched, so a name-derived guess is easy to double check.
+ * then the company's legal name — "OM LOGISTIC" and "Eco Recycling Plant"
+ * classify correctly from their name even though their Services column
+ * carries no signal at all. Each report row says which source actually
+ * matched, so a name-derived guess is easy to double check.
  *
  * Only a confident, single-industry match is applied; anything ambiguous,
  * unmatched everywhere, or with nothing to go on is left Unclassified and
@@ -95,14 +95,12 @@ async function main() {
   for (const site of sites ?? []) {
     const code = site.legacy_vendor_code ?? '';
     const services = (site.services_text ?? '').trim();
-    const { data: company } = await supabase.from('company').select('legal_name, trade_name').eq('id', site.company_id).single();
+    const { data: company } = await supabase.from('company').select('legal_name').eq('id', site.company_id).single();
     const legalName = company?.legal_name ?? '';
-    const tradeName = company?.trade_name ?? '';
 
     const attempts: { source: string; text: string }[] = [
       { source: 'Services text', text: services },
       { source: 'Legal name', text: legalName },
-      { source: 'Trade name', text: tradeName },
     ].filter(a => a.text);
 
     let industry: 'recycling' | 'packaging' | 'transportation' | null = null;

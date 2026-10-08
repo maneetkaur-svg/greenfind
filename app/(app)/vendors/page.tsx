@@ -4,7 +4,7 @@ import { INDUSTRIES } from '@/lib/constants';
 import DashboardCard, { type DashRow } from './DashboardCard';
 
 type Row = {
-  id: string; site_code: string; legal_name: string; trade_name: string | null;
+  id: string; site_code: string; legal_name: string;
   gstin: string | null; industry: string | null; state: string | null; city: string | null;
   status: string | null; legacy_vendor_code: string | null; services_text: string | null;
   aadhaar_last4: string | null;
@@ -21,8 +21,8 @@ function status(r: Row) {
 
 export default async function VendorsPage({
   searchParams,
-}: { searchParams: Promise<{ q?: string; industry?: string }> }) {
-  const { q, industry } = await searchParams;
+}: { searchParams: Promise<{ q?: string; industry?: string; sort?: string }> }) {
+  const { q, industry, sort } = await searchParams;
   const me = await getMe();
   const supabase = await createClient();
 
@@ -38,8 +38,21 @@ export default async function VendorsPage({
   if (q) {
     const needle = q.toLowerCase();
     rows = rows.filter(r =>
-      `${r.legal_name} ${r.trade_name ?? ''} ${r.gstin ?? ''} ${r.site_code} ${r.legacy_vendor_code ?? ''} ${r.services_text ?? ''}`.toLowerCase().includes(needle));
+      `${r.legal_name} ${r.gstin ?? ''} ${r.site_code} ${r.legacy_vendor_code ?? ''} ${r.services_text ?? ''}`.toLowerCase().includes(needle));
   }
+  if (sort === 'name_asc' || sort === 'name_desc') {
+    const dir = sort === 'name_asc' ? 1 : -1;
+    rows = [...rows].sort((a, b) => dir * a.legal_name.localeCompare(b.legal_name));
+  }
+
+  // Preserves the current search/filter while only the sort changes.
+  const sortHref = (next: string) => {
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    if (industry) params.set('industry', industry);
+    params.set('sort', next);
+    return `/vendors?${params.toString()}`;
+  };
 
   const companies = new Set(rows.map(r => r.company_id)).size;
 
@@ -95,7 +108,17 @@ export default async function VendorsPage({
           <table>
             <thead>
               <tr>
-                <th>Vendor</th><th>Industry</th><th>State</th>
+                <th>
+                  <Link href={sortHref(sort === 'name_asc' ? 'name_desc' : 'name_asc')}
+                        className="inline-flex items-center gap-1" style={{ color: 'inherit' }}
+                        title="Sort alphabetically">
+                    Vendor
+                    <span style={{ opacity: sort === 'name_asc' || sort === 'name_desc' ? 1 : .35, fontSize: 11 }}>
+                      {sort === 'name_desc' ? '▼' : sort === 'name_asc' ? '▲' : '⇅'}
+                    </span>
+                  </Link>
+                </th>
+                <th>Industry</th><th>State</th>
                 <th>Status</th><th>Documents</th><th>Completeness</th><th>Sites</th>
               </tr>
             </thead>
