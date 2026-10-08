@@ -23,8 +23,13 @@ export default function SearchForm({ q, industry, sort }: { q?: string; industry
             if (sort) params.set('sort', sort);
             router.push(`/vendors?${params.toString()}`);
           }}>
-      <input name="q" defaultValue={q ?? ''} placeholder="Search name, GSTIN, vendor code or services"
-             className="w-[280px]" />
+      <div className="relative w-[300px]">
+        <span className="absolute pointer-events-none" style={{ left: 13, top: '50%', transform: 'translateY(-50%)', color: 'var(--faint)' }}>
+          🔍
+        </span>
+        <input name="q" defaultValue={q ?? ''} placeholder="Search name, GSTIN, vendor code or services"
+               style={{ paddingLeft: 36 }} />
+      </div>
       <select name="industry" defaultValue={industry ?? ''} className="w-[170px]">
         <option value="">All industries</option>
         {INDUSTRIES.map(i => <option key={i.code} value={i.code}>{i.label}</option>)}

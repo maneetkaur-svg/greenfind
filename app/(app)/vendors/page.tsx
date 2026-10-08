@@ -20,10 +20,38 @@ function status(r: Row) {
   return ['c-a', 'INCOMPLETE'];
 }
 
+const INDUSTRY_ICON: Record<string, string> = {
+  recycling: '♻️', transportation: '🚚', packaging: '📦', warehouse: '🏭',
+};
+const AVATAR_COLORS = ['icon-green', 'icon-blue', 'icon-purple', 'icon-orange', 'icon-teal', 'icon-grey'];
+function initials(name: string) {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return '—';
+  return words.length === 1 ? words[0].slice(0, 2).toUpperCase() : (words[0][0] + words[1][0]).toUpperCase();
+}
+function avatarColor(name: string) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
+}
+
+const PAGE_SIZE = 20;
+/** First, last, current ±1, with a gap marker wherever a jump is skipped. */
+function pageNumbers(current: number, total: number): (number | '…')[] {
+  const pages = new Set([1, total, current, current - 1, current + 1]);
+  const sorted = [...pages].filter(p => p >= 1 && p <= total).sort((a, b) => a - b);
+  const out: (number | '…')[] = [];
+  for (let i = 0; i < sorted.length; i++) {
+    if (i > 0 && sorted[i] - sorted[i - 1] > 1) out.push('…');
+    out.push(sorted[i]);
+  }
+  return out;
+}
+
 export default async function VendorsPage({
   searchParams,
-}: { searchParams: Promise<{ q?: string; industry?: string; sort?: string }> }) {
-  const { q, industry, sort } = await searchParams;
+}: { searchParams: Promise<{ q?: string; industry?: string; sort?: string; page?: string }> }) {
+  const { q, industry, sort, page: pageParam } = await searchParams;
   const me = await getMe();
   const supabase = await createClient();
 
@@ -55,6 +83,20 @@ export default async function VendorsPage({
     return `/vendors?${params.toString()}`;
   };
 
+  const total = rows.length;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const currentPage = Math.min(Math.max(1, Number(pageParam) || 1), totalPages);
+  const pageRows = rows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const pageHref = (p: number) => {
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    if (industry) params.set('industry', industry);
+    if (sort) params.set('sort', sort);
+    params.set('page', String(p));
+    return `/vendors?${params.toString()}`;
+  };
+  const clearHref = sort ? `/vendors?sort=${sort}` : '/vendors';
+
   return (
     <>
       {Array.isArray(dash) && dash.length > 0 && <DashboardCard rows={dash as DashRow[]} />}
@@ -76,6 +118,18 @@ export default async function VendorsPage({
             If this says the relation does not exist, 01_schema.sql has not been run.
             If it returns nothing but you know there is data, check that your profile row exists.
           </div>
+        </div>
+      )}
+
+      {!error && (q || industry) && (
+        <div className="flex items-center gap-2 mb-4 text-[13px] font-semibold" style={{ color: 'var(--p700)' }}>
+          <span>☷</span>
+          <span>
+            {industry && `Industry: ${industry === 'unclassified' ? 'Others' : INDUSTRIES.find(i => i.code === industry)?.label ?? industry}`}
+            {q && industry && ' · '}
+            {q && `Matching "${q}"`}
+          </span>
+          <Link href={clearHref} style={{ color: 'var(--faint)', textDecoration: 'underline' }}>Clear</Link>
         </div>
       )}
 
@@ -103,36 +157,50 @@ export default async function VendorsPage({
                   </Link>
                 </th>
                 <th>Industry</th><th>State (by GST)</th>
-                <th>Documents</th><th>Completeness</th>
+                <th>Documents</th><th>Completeness</th><th></th>
               </tr>
             </thead>
             <tbody>
-              {rows.map(r => {
+              {pageRows.map(r => {
                 const [cls, label] = status(r);
+                const icon = INDUSTRY_ICON[r.industry ?? ''];
                 return (
                   <tr key={r.id} className="relative hover:bg-[var(--surface-2)] cursor-pointer">
                     <td>
                       <Link href={`/vendors/${r.id}`} className="absolute inset-0" style={{ zIndex: 1 }}
                             aria-label={r.legal_name} />
-                      <span className="font-bold" style={{ color: 'var(--head)' }}>{r.legal_name}</span>
-                      <div className="text-[12px]" style={{ color: 'var(--faint)' }}>
-                        {[r.legacy_vendor_code,
-                          r.gstin ?? (r.aadhaar_last4 ? `Aadhaar ••••${r.aadhaar_last4}` : null)]
-                          .filter(Boolean).join(' · ')}
+                      <div className="flex items-center gap-3">
+                        <span className={`icon-circle ${avatarColor(r.legal_name)}`}
+                              style={{ width: 38, height: 38, fontSize: 13 }}>
+                          {initials(r.legal_name)}
+                        </span>
+                        <div>
+                          <div className="font-bold" style={{ color: 'var(--head)' }}>{r.legal_name}</div>
+                          <div className="text-[12px]" style={{ color: 'var(--faint)' }}>
+                            {[r.legacy_vendor_code,
+                              r.gstin ?? (r.aadhaar_last4 ? `Aadhaar ••••${r.aadhaar_last4}` : null)]
+                              .filter(Boolean).join(' · ')}
+                          </div>
+                        </div>
                       </div>
                     </td>
                     <td>
-                      {INDUSTRIES.find(i => i.code === r.industry)?.label ?? (
-                        r.services_text
-                          ? <span className="chip c-n" title={r.services_text}>
-                              {r.services_text.length > 40 ? r.services_text.slice(0, 40) + '…' : r.services_text}
-                            </span>
-                          : <span className="chip c-n">UNCLASSIFIED</span>
+                      {INDUSTRIES.find(i => i.code === r.industry)?.label ? (
+                        <span className="chip c-g">{icon && `${icon} `}{INDUSTRIES.find(i => i.code === r.industry)?.label}</span>
+                      ) : r.services_text ? (
+                        <span className="chip c-n" title={r.services_text}>
+                          {r.services_text.length > 40 ? r.services_text.slice(0, 40) + '…' : r.services_text}
+                        </span>
+                      ) : (
+                        <span className="chip c-n">UNCLASSIFIED</span>
                       )}
                     </td>
                     <td className="text-[13px]">{r.state ?? '—'}</td>
-                    <td className="text-[13px]">
-                      {r.docs_attached}/{r.docs_required} attached
+                    <td>
+                      <div className="text-[13px] font-semibold" style={{ color: 'var(--head)' }}>
+                        {r.docs_attached}/{r.docs_required}
+                      </div>
+                      <div className="text-[11.5px]" style={{ color: 'var(--faint)' }}>attached</div>
                     </td>
                     <td>
                       <span className={`chip ${cls}`}>{label}</span>
@@ -140,11 +208,35 @@ export default async function VendorsPage({
                         <span className="chip c-a ml-1">REQUEST OPEN</span>
                       )}
                     </td>
+                    <td className="text-center" style={{ color: 'var(--faint)' }}>›</td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {!error && rows.length > 0 && (
+        <div className="flex items-center justify-between gap-3 flex-wrap mt-4">
+          <div className="text-[13px]" style={{ color: 'var(--faint)' }}>
+            Showing {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, total)} of {total} vendor{total === 1 ? '' : 's'}
+          </div>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1">
+              {currentPage === 1
+                ? <span className="page-btn disabled">‹</span>
+                : <Link href={pageHref(currentPage - 1)} className="page-btn">‹</Link>}
+              {pageNumbers(currentPage, totalPages).map((p, i) =>
+                p === '…'
+                  ? <span key={`gap${i}`} className="page-btn" style={{ cursor: 'default' }}>…</span>
+                  : <Link key={p} href={pageHref(p)} className={`page-btn ${p === currentPage ? 'active' : ''}`}>{p}</Link>
+              )}
+              {currentPage === totalPages
+                ? <span className="page-btn disabled">›</span>
+                : <Link href={pageHref(currentPage + 1)} className="page-btn">›</Link>}
+            </div>
+          )}
         </div>
       )}
     </>
