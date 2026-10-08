@@ -6,6 +6,7 @@ import { ROLE_LABEL } from '@/lib/constants';
 import { DEV_AUTH_BYPASS } from '@/lib/devAuth';
 import DevBanner from './DevBanner';
 import Sidebar from './Sidebar';
+import NavProgress from './NavProgress';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const me = await getMe();
@@ -13,6 +14,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="min-h-screen">
+      <NavProgress />
       <DevBanner />
       <header className="sticky top-0 z-30 border-b"
               style={{ background: 'var(--surface)', borderColor: 'var(--line)' }}>
