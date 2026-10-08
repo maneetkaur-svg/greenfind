@@ -65,7 +65,6 @@ export default async function VendorsPage({
           <select name="industry" defaultValue={industry ?? ''} className="w-[170px]">
             <option value="">All industries</option>
             {INDUSTRIES.map(i => <option key={i.code} value={i.code}>{i.label}</option>)}
-            <option value="unclassified">Unclassified</option>
           </select>
           <button className="btn btn-o">Search</button>
         </form>
@@ -111,7 +110,7 @@ export default async function VendorsPage({
                   </Link>
                 </th>
                 <th>Industry</th><th>State (by GST)</th>
-                <th>Status</th><th>Documents</th><th>Completeness</th><th>Sites</th>
+                <th>Documents</th><th>Completeness</th>
               </tr>
             </thead>
             <tbody>
@@ -139,13 +138,6 @@ export default async function VendorsPage({
                       )}
                     </td>
                     <td className="text-[13px]">{r.state ?? '—'}</td>
-                    <td>
-                      {r.status && (
-                        <span className={`chip ${r.status === 'active' ? 'c-g' : r.status === 'blocked' ? 'c-r' : 'c-a'}`}>
-                          {r.status.toUpperCase()}
-                        </span>
-                      )}
-                    </td>
                     <td className="text-[13px]">
                       {r.docs_attached}/{r.docs_required} attached
                     </td>
@@ -154,11 +146,6 @@ export default async function VendorsPage({
                       {r.has_pending_request && (
                         <span className="chip c-a ml-1">REQUEST OPEN</span>
                       )}
-                    </td>
-                    <td className="text-[13px]">
-                      {r.sibling_sites > 1
-                        ? <span className="chip c-n">{r.sibling_sites} sites</span>
-                        : <span style={{ color: 'var(--faint)' }}>—</span>}
                     </td>
                   </tr>
                 );

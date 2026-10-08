@@ -1,5 +1,5 @@
 'use client';
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import { saveContacts, type SaveState } from './actions';
 import SubmitButton from '@/app/SubmitButton';
 
@@ -18,17 +18,18 @@ export default function ContactsForm({
 }: { contacts: Contact[]; siteId: string; readOnly: boolean }) {
   const [state, action] = useActionState<SaveState, FormData>(saveContacts, {});
   const at = (r: number) => contacts.find(c => c.rank === r);
+  const [showThird, setShowThird] = useState(!!at(3)?.name);
 
   return (
     <form action={action}>
       <input type="hidden" name="__site_id" value={siteId} />
       <p className="text-[13.5px] mb-4" style={{ color: 'var(--faint)' }}>
-        Two are required. A third is there if you have one.
+        Two are required.
       </p>
       {state.error && <div className="note r mb-4">{state.error}</div>}
       {state.ok && <div className="note mb-4">{state.ok}</div>}
 
-      {[1, 2, 3].map(rank => {
+      {(showThird ? [1, 2, 3] : [1, 2]).map(rank => {
         const c = at(rank);
         return (
           <div key={rank} className={rank > 1 ? 'mt-6 pt-5 border-t' : ''}
@@ -65,6 +66,12 @@ export default function ContactsForm({
           </div>
         );
       })}
+
+      {!showThird && !readOnly && (
+        <button type="button" className="btn btn-o mt-5" onClick={() => setShowThird(true)}>
+          + Add another contact
+        </button>
+      )}
 
       {!readOnly && (
         <div className="mt-5">

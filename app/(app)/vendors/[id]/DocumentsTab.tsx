@@ -1,4 +1,5 @@
 'use client';
+import Link from 'next/link';
 import { useActionState, useState } from 'react';
 import { uploadDocument, removeDocument, getDownloadUrl,
          type DocState } from './documentActions';
@@ -16,6 +17,15 @@ export type DocRow = {
   storage_path: string;
 };
 
+/** These have their own upload spot elsewhere in the record (Identity,
+ *  Banking, the CTO/EPR tabs, Agreements) — see InlineDocUpload.tsx. This
+ *  tab shows them as a plain status line instead of a second upload form,
+ *  so there is exactly one place to attach each of them, not two. */
+const CONTEXTUAL: Record<string, string> = {
+  gst: 'identity', pan: 'identity', udyam: 'identity',
+  cheque: 'banking', nda: 'agreements', cto: 'cto', epr: 'epr',
+};
+
 const size = (b: number | null) =>
   !b ? '' : b < 1024 ? `${b} B` : b < 1048576 ? `${Math.round(b / 1024)} KB`
   : `${(b / 1048576).toFixed(1)} MB`;
@@ -30,6 +40,7 @@ export default function DocumentsTab({
 }: { types: DocType[]; docs: DocRow[]; siteId: string; readOnly: boolean }) {
   const [state, action] = useActionState<DocState, FormData>(uploadDocument, {});
   const [open, setOpen] = useState<string | null>(null);
+  const [addingExtra, setAddingExtra] = useState(false);
 
   const have = (code: string) => docs.find(d => d.doc_type === code);
   const required = types.filter(t => t.level === 'required' && t.uploaded_by_party === 'vendor');
@@ -48,6 +59,10 @@ export default function DocumentsTab({
     level === 'required' ? 'c-r' : level === 'conditional' ? 'c-a'
     : level === 'recommended' ? 'c-n' : 'c-n';
 
+  const contextualTypes = types.filter(t => CONTEXTUAL[t.code]);
+  const otherTypes = types.filter(t => !CONTEXTUAL[t.code]);
+  const extraDocs = docs.filter(d => d.doc_type === 'other');
+
   return (
     <>
       <div className="grid md:grid-cols-3 gap-4 mb-5">
@@ -65,11 +80,34 @@ export default function DocumentsTab({
       {state.error && <div className="note r mb-4">{state.error}</div>}
       {state.ok && <div className="note mb-4">{state.ok}</div>}
 
+      {contextualTypes.length > 0 && (
+        <div className="card p-4 mb-4" style={{ background: 'var(--surface-2)' }}>
+          <div className="text-[11px] font-bold uppercase tracking-[.07em] mb-3"
+               style={{ color: 'var(--faint)' }}>Asked for on their own tab</div>
+          <div className="grid gap-2">
+            {contextualTypes.map(t => {
+              const d = have(t.code);
+              return (
+                <div key={t.code} className="flex items-center justify-between gap-3">
+                  <span className="text-[13px]" style={{ color: 'var(--head)' }}>
+                    {d ? '✓ ' : '○ '}{t.label}
+                  </span>
+                  <Link href={`/vendors/${siteId}?tab=${CONTEXTUAL[t.code]}`}
+                        className="text-[12.5px] font-semibold" style={{ color: 'var(--p600)' }}>
+                    {d ? 'View' : 'Go add it'}
+                  </Link>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <p className="text-[13.5px] mb-4" style={{ color: 'var(--faint)' }}>
         Only what applies to this industry is listed. PDF, JPG or PNG, up to 10 MB.
       </p>
 
-      {types.map(t => {
+      {otherTypes.map(t => {
         const d = have(t.code);
         const left = daysLeft(d?.valid_until ?? null);
         const expiring = left !== null && left < 60;
@@ -171,6 +209,67 @@ export default function DocumentsTab({
           </div>
         );
       })}
+
+      <div className="card p-4 mb-3">
+        <div className="flex justify-between items-center gap-3 flex-wrap">
+          <div>
+            <div className="text-[13.5px] font-bold" style={{ color: 'var(--head)' }}>Anything else</div>
+            <div className="text-[12px]" style={{ color: 'var(--faint)' }}>
+              ISO certificates, a rate card — whatever else is worth attaching.
+            </div>
+          </div>
+          {!readOnly && !addingExtra && (
+            <button type="button" className="btn btn-o" onClick={() => setAddingExtra(true)}>
+              + Add more documents
+            </button>
+          )}
+        </div>
+
+        {extraDocs.map(d => (
+          <div key={d.id} className="flex items-center justify-between gap-3 mt-3 pt-3 border-t"
+               style={{ borderColor: 'var(--line)' }}>
+            <span className="text-[13px]" style={{ color: 'var(--head)' }}>
+              {d.doc_number || d.file_name}
+              <span style={{ color: 'var(--faint)' }}> · {d.file_name}{d.file_size && ` · ${size(d.file_size)}`}</span>
+            </span>
+            <div className="flex gap-2">
+              <button type="button" className="text-[12.5px] font-semibold" style={{ color: 'var(--p600)' }}
+                      onClick={() => view(d.storage_path)}>View</button>
+              {!readOnly && (
+                <form action={removeDocument}>
+                  <input type="hidden" name="id" value={d.id} />
+                  <input type="hidden" name="site_id" value={siteId} />
+                  <button className="text-[12.5px] font-semibold" style={{ color: 'var(--err)' }}>Remove</button>
+                </form>
+              )}
+            </div>
+          </div>
+        ))}
+
+        {addingExtra && !readOnly && (
+          <form action={action} className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--line)' }}
+                onSubmit={() => setAddingExtra(false)}>
+            <input type="hidden" name="site_id" value={siteId} />
+            <input type="hidden" name="doc_type" value="other" />
+            <div className="grid md:grid-cols-3 gap-4">
+              <div className="md:col-span-2">
+                <label className="lab" htmlFor="extra_label">What document is this?</label>
+                <input id="extra_label" name="doc_number" required maxLength={60}
+                       placeholder="e.g. ISO 14001 certificate" />
+              </div>
+              <div>
+                <label className="lab" htmlFor="extra_file">File</label>
+                <input id="extra_file" name="file" type="file" required
+                       accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*" />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-4">
+              <SubmitButton pendingText="Uploading…">Attach</SubmitButton>
+              <button type="button" className="btn btn-o" onClick={() => setAddingExtra(false)}>Cancel</button>
+            </div>
+          </form>
+        )}
+      </div>
 
       {!types.length && (
         <div className="note a">

@@ -67,6 +67,9 @@ h1,h2,h3,h4 { color: var(--head); letter-spacing: -.02em; }
 .c-a { background: var(--warn-l); color: var(--warn-d); }
 .c-r { background: var(--err-l); color:#7F1D1D; }
 .c-n { background: var(--surface-2); color: var(--faint); border:1px solid var(--line); }
+/* An extra border (and the ✓ prefix callers add) on a selected toggle chip —
+   color alone was not obvious enough, especially c-g vs c-n. */
+.chip.tick { border: 1.5px solid var(--p600); font-weight: 800; }
 
 label.lab { display:block; font-size:13px; font-weight:700; color:var(--head); margin-bottom:5px; }
 .req { color: var(--err); }

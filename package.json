@@ -18,7 +18,8 @@
     "fill:bank-branch": "tsx scripts/import/fill-bank-branch.ts",
     "cleanup:vendors": "tsx scripts/import/cleanup-vendors.ts",
     "extract:entity": "tsx scripts/import/extract-entity-from-certificates.ts",
-    "reclassify:warehouse": "tsx scripts/import/reclassify-warehouse.ts"
+    "reclassify:warehouse": "tsx scripts/import/reclassify-warehouse.ts",
+    "remove:aadhaar-only": "tsx scripts/import/remove-aadhaar-only.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",

@@ -136,8 +136,6 @@ export const SECTIONS: Section[] = [
       { key: 'ifsc', label: 'IFSC', type: 'text', required: true, max: 11, half: true,
         placeholder: 'HDFC0000432', hint: 'Eleven characters. The fifth is always zero.' },
       { key: 'bank_branch', label: 'Bank and branch', type: 'text', required: true, max: 150 },
-      { key: 'cheque_on_file', label: 'Cancelled cheque on file', type: 'bool', required: true,
-        hint: 'Must be yes before any payment is released.' },
     ],
   },
   {
