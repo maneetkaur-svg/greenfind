@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { createClient, getMe } from '@/lib/supabase/server';
 import { INDUSTRIES } from '@/lib/constants';
 import DashboardCard, { type DashRow } from './DashboardCard';
+import SearchForm from './SearchForm';
 
 type Row = {
   id: string; site_code: string; legal_name: string;
@@ -59,15 +60,7 @@ export default async function VendorsPage({
       {Array.isArray(dash) && dash.length > 0 && <DashboardCard rows={dash as DashRow[]} />}
 
       <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
-        <form className="flex items-center gap-2 flex-wrap">
-          <input name="q" defaultValue={q ?? ''} placeholder="Search name, GSTIN, vendor code or services"
-                 className="w-[280px]" />
-          <select name="industry" defaultValue={industry ?? ''} className="w-[170px]">
-            <option value="">All industries</option>
-            {INDUSTRIES.map(i => <option key={i.code} value={i.code}>{i.label}</option>)}
-          </select>
-          <button className="btn btn-o">Search</button>
-        </form>
+        <SearchForm q={q} industry={industry} sort={sort} />
         {me?.role !== 'user' && (
           <div className="flex gap-2">
             {me?.role === 'super_admin' && <Link href="/vendors/import" className="btn btn-o">Import</Link>}
