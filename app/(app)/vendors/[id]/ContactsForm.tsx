@@ -1,6 +1,7 @@
 'use client';
 import { useActionState } from 'react';
 import { saveContacts, type SaveState } from './actions';
+import SubmitButton from '@/app/SubmitButton';
 
 type Contact = { rank: number; name: string; designation: string | null;
                  mobile: string | null; email: string | null };
@@ -15,7 +16,7 @@ const BLURBS = [
 export default function ContactsForm({
   contacts, siteId, readOnly,
 }: { contacts: Contact[]; siteId: string; readOnly: boolean }) {
-  const [state, action, pending] = useActionState<SaveState, FormData>(saveContacts, {});
+  const [state, action] = useActionState<SaveState, FormData>(saveContacts, {});
   const at = (r: number) => contacts.find(c => c.rank === r);
 
   return (
@@ -67,9 +68,7 @@ export default function ContactsForm({
 
       {!readOnly && (
         <div className="mt-5">
-          <button className="btn btn-p" disabled={pending}>
-            {pending ? 'Saving…' : 'Save contacts'}
-          </button>
+          <SubmitButton pendingText="Saving…">Save contacts</SubmitButton>
         </div>
       )}
     </form>

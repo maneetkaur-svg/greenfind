@@ -3,7 +3,7 @@ import Link from 'next/link';
 export type DashRow = { industry: string; vendors: number; active_vendors: number; sites: number };
 
 const LABEL: Record<string, string> = {
-  recycling: 'Recycling', packaging: 'Packaging', transportation: 'Transportation', unclassified: 'Unclassified',
+  recycling: 'Recycling', packaging: 'Packaging', transportation: 'Transportation', unclassified: 'Others',
 };
 const ORDER = ['recycling', 'packaging', 'transportation', 'unclassified'];
 

@@ -2,27 +2,30 @@
 import { useActionState, useState } from 'react';
 import { saveSection, type SaveState } from './actions';
 import { SECTIONS } from '@/lib/schema';
+import SubmitButton from '@/app/SubmitButton';
 
 /** Takes the section id, not the section. The definitions contain showIf
  *  functions, and a function cannot be passed from a server component to a
  *  client one — React throws when it tries to serialise it. Looking it up
  *  here keeps only plain strings crossing the boundary. */
 export default function SectionForm({
-  sectionId, values, siteId, companyId, readOnly,
+  sectionId, values, siteId, companyId, readOnly, isSuperAdmin,
 }: {
   sectionId: string;
   values: Record<string, unknown>;
   siteId: string;
   companyId: string;
   readOnly: boolean;
+  isSuperAdmin: boolean;
 }) {
   const section = SECTIONS.find(s => s.id === sectionId);
-  const [state, action, pending] = useActionState<SaveState, FormData>(saveSection, {});
+  const [state, action] = useActionState<SaveState, FormData>(saveSection, {});
   const [live, setLive] = useState<Record<string, unknown>>(values);
 
   const set = (k: string, v: unknown) => setLive(p => ({ ...p, [k]: v }));
   if (!section) return <p className="text-[13.5px]">Unknown section.</p>;
   const visible = section.fields.filter(f => !f.showIf || f.showIf(live));
+  const isBlank = (v: unknown) => v === null || v === undefined || v === '';
 
   return (
     <form action={action}>
@@ -40,16 +43,23 @@ export default function SectionForm({
         {visible.map(f => {
           const v = live[f.key];
           const wide = !f.half || f.type === 'longtext';
+          const locked = readOnly || (f.superAdminOnly && !isSuperAdmin);
+          const incomplete = !!f.required && f.type !== 'readonly' && isBlank(v);
+          const fieldStyle = incomplete ? { borderColor: 'var(--err)' } : undefined;
           return (
-            <div key={f.key} className={wide ? 'md:col-span-2' : ''}>
+            <div key={f.key} className={wide ? 'md:col-span-2' : ''}
+                 style={incomplete ? { borderLeft: '3px solid var(--err)', paddingLeft: 10, marginLeft: -13 } : undefined}>
               <label className="lab" htmlFor={f.key}>
+                {incomplete && <span className="inline-block rounded-full mr-1"
+                                      style={{ width: 7, height: 7, background: 'var(--err)' }} />}
                 {f.label} {f.required && <span className="req">*</span>}
+                {f.superAdminOnly && !isSuperAdmin && <span className="chip c-n ml-1">SUPER ADMIN</span>}
               </label>
 
               {f.type === 'readonly' ? (
                 <input id={f.key} value={String(v ?? '')} disabled />
               ) : f.type === 'bool' ? (
-                <select id={f.key} name={f.key} disabled={readOnly}
+                <select id={f.key} name={f.key} disabled={locked} style={fieldStyle}
                         value={v === true ? 'true' : v === false ? 'false' : ''}
                         onChange={e => set(f.key, e.target.value === 'true' ? true
                                        : e.target.value === 'false' ? false : null)}>
@@ -58,7 +68,7 @@ export default function SectionForm({
                   <option value="false">No</option>
                 </select>
               ) : f.type === 'select' ? (
-                <select id={f.key} name={f.key} disabled={readOnly}
+                <select id={f.key} name={f.key} disabled={locked} style={fieldStyle}
                         value={String(v ?? '')}
                         onChange={e => set(f.key, e.target.value)}>
                   <option value="">Select…</option>
@@ -67,12 +77,12 @@ export default function SectionForm({
                   ))}
                 </select>
               ) : f.type === 'longtext' ? (
-                <textarea id={f.key} name={f.key} disabled={readOnly} rows={3}
+                <textarea id={f.key} name={f.key} disabled={locked} rows={3} style={fieldStyle}
                           placeholder={f.placeholder}
                           value={String(v ?? '')}
                           onChange={e => set(f.key, e.target.value)} />
               ) : (
-                <input id={f.key} name={f.key} disabled={readOnly}
+                <input id={f.key} name={f.key} disabled={locked} style={fieldStyle}
                        type={f.type === 'number' || f.type === 'currency' ? 'number'
                             : f.type === 'date' ? 'date' : 'text'}
                        step={f.type === 'number' || f.type === 'currency' ? 'any' : undefined}
@@ -90,9 +100,7 @@ export default function SectionForm({
 
       {!readOnly && (
         <div className="mt-5">
-          <button className="btn btn-p" disabled={pending}>
-            {pending ? 'Saving…' : 'Save ' + section.label.toLowerCase()}
-          </button>
+          <SubmitButton pendingText="Saving…">Save {section.label.toLowerCase()}</SubmitButton>
         </div>
       )}
     </form>

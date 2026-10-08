@@ -1,9 +1,10 @@
 'use client';
 import { useActionState } from 'react';
 import { createFirstAdmin, type SetupState } from './actions';
+import SubmitButton from '@/app/SubmitButton';
 
 export default function SetupPage() {
-  const [state, action, pending] = useActionState<SetupState, FormData>(createFirstAdmin, {});
+  const [state, action] = useActionState<SetupState, FormData>(createFirstAdmin, {});
 
   return (
     <div className="min-h-screen grid place-items-center p-5">
@@ -36,9 +37,9 @@ export default function SetupPage() {
             <input id="confirm" name="confirm" type="password" required
                    minLength={8} autoComplete="new-password" />
           </div>
-          <button className="btn btn-p w-full justify-center" disabled={pending}>
-            {pending ? 'Creating…' : 'Create account and sign in'}
-          </button>
+          <SubmitButton className="btn btn-p w-full justify-center" pendingText="Creating…">
+            Create account and sign in
+          </SubmitButton>
         </form>
       </div>
     </div>

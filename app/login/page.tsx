@@ -1,4 +1,5 @@
 import { signIn } from './actions';
+import SubmitButton from '@/app/SubmitButton';
 
 export default async function LoginPage({
   searchParams,
@@ -42,7 +43,9 @@ export default async function LoginPage({
             <input id="password" name="password" type="password" required
                    autoComplete="current-password" />
           </div>
-          <button className="btn btn-p w-full justify-center" type="submit">Continue</button>
+          <SubmitButton className="btn btn-p w-full justify-center" pendingText="Signing in…">
+            Continue
+          </SubmitButton>
         </form>
 
         <p className="hint mt-4">

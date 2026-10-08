@@ -25,6 +25,13 @@ yarn-error.log*
 .env*.local
 .env.local
 .env.production
+.env.import
+
+# the one-off document import: the source spreadsheet and its generated
+# reports can both carry vendor PII and must stay local
+/scripts/import/input/*
+!/scripts/import/input/.gitkeep
+/scripts/import/output/
 
 # vercel
 .vercel

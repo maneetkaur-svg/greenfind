@@ -7,6 +7,7 @@ type Row = {
   id: string; site_code: string; legal_name: string; trade_name: string | null;
   gstin: string | null; industry: string | null; state: string | null; city: string | null;
   status: string | null; legacy_vendor_code: string | null; services_text: string | null;
+  aadhaar_last4: string | null;
   company_id: string; company_code: string; sibling_sites: number;
   docs_attached: number; docs_verified: number; docs_required: number;
   has_pending_request: boolean; updated_at: string;
@@ -46,7 +47,7 @@ export default async function VendorsPage({
     <>
       <div className="flex justify-between items-start gap-5 flex-wrap mb-5">
         <div>
-          <h1 className="text-[26px] font-bold">Vendor Master</h1>
+          <h1 className="text-[26px] font-bold">Vendor Management Tool</h1>
           <p className="text-[13.5px] mt-1" style={{ color: 'var(--faint)' }}>
             {rows.length} site{rows.length === 1 ? '' : 's'} across {companies} compan{companies === 1 ? 'y' : 'ies'}
           </p>
@@ -107,11 +108,20 @@ export default async function VendorsPage({
                       <Link href={`/vendors/${r.id}`} className="font-bold"
                             style={{ color: 'var(--head)' }}>{r.legal_name}</Link>
                       <div className="text-[12px]" style={{ color: 'var(--faint)' }}>
-                        {[r.site_code, r.legacy_vendor_code, r.gstin].filter(Boolean).join(' · ')}
+                        {[r.site_code, r.legacy_vendor_code,
+                          r.gstin ?? (r.aadhaar_last4 ? `Aadhaar ••••${r.aadhaar_last4}` : null)]
+                          .filter(Boolean).join(' · ')}
                       </div>
                     </td>
-                    <td>{INDUSTRIES.find(i => i.code === r.industry)?.label
-                      ?? <span className="chip c-n">UNCLASSIFIED</span>}</td>
+                    <td>
+                      {INDUSTRIES.find(i => i.code === r.industry)?.label ?? (
+                        r.services_text
+                          ? <span className="chip c-n" title={r.services_text}>
+                              {r.services_text.length > 40 ? r.services_text.slice(0, 40) + '…' : r.services_text}
+                            </span>
+                          : <span className="chip c-n">UNCLASSIFIED</span>
+                      )}
+                    </td>
                     <td className="text-[13px]">{r.state ?? '—'}</td>
                     <td>
                       {r.status && (

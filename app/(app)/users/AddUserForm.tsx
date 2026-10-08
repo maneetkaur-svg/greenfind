@@ -1,9 +1,10 @@
 'use client';
 import { useActionState } from 'react';
 import { addUser, type UserState } from './actions';
+import SubmitButton from '@/app/SubmitButton';
 
 export default function AddUserForm() {
-  const [state, action, pending] = useActionState<UserState, FormData>(addUser, {});
+  const [state, action] = useActionState<UserState, FormData>(addUser, {});
 
   return (
     <div className="card p-6">
@@ -39,9 +40,7 @@ export default function AddUserForm() {
           </select>
         </div>
         <div className="md:col-span-4">
-          <button className="btn btn-p" disabled={pending}>
-            {pending ? 'Creating…' : 'Create account'}
-          </button>
+          <SubmitButton pendingText="Creating…">Create account</SubmitButton>
         </div>
       </form>
     </div>

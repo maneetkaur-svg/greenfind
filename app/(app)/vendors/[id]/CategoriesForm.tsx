@@ -1,17 +1,18 @@
 'use client';
 import { useActionState, useState } from 'react';
 import { saveCategories, type SaveState } from './actions';
+import SubmitButton from '@/app/SubmitButton';
 
 export type Cat = { id: string; code: string; label: string;
                     subs: { id: string; code: string; label: string }[] };
 
 export default function CategoriesForm({
-  cats, selectedCats, selectedSubs, siteId, readOnly,
+  cats, selectedCats, selectedSubs, siteId, readOnly, servicesText,
 }: {
   cats: Cat[]; selectedCats: string[]; selectedSubs: string[];
-  siteId: string; readOnly: boolean;
+  siteId: string; readOnly: boolean; servicesText?: string | null;
 }) {
-  const [state, action, pending] = useActionState<SaveState, FormData>(saveCategories, {});
+  const [state, action] = useActionState<SaveState, FormData>(saveCategories, {});
   const [picked, setPicked] = useState<string[]>(selectedCats);
   const [subs, setSubs] = useState<string[]>(selectedSubs);
 
@@ -27,10 +28,19 @@ export default function CategoriesForm({
     setSubs(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
   };
 
+  const servicesNote = servicesText && (
+    <div className="note mb-4">
+      <b>Services, as recorded:</b> {servicesText}
+    </div>
+  );
+
   if (!cats.length)
-    return <p className="text-[13.5px]" style={{ color: 'var(--faint)' }}>
-      No categories configured for this industry. Run 03_reference_data.sql.
-    </p>;
+    return <>
+      {servicesNote}
+      <p className="text-[13.5px]" style={{ color: 'var(--faint)' }}>
+        No categories configured for this industry. Run 03_reference_data.sql.
+      </p>
+    </>;
 
   return (
     <form action={action}>
@@ -38,6 +48,7 @@ export default function CategoriesForm({
       {picked.map(id => <input key={id} type="hidden" name="categories" value={id} />)}
       {subs.map(id => <input key={id} type="hidden" name="subcategories" value={id} />)}
 
+      {servicesNote}
       <p className="text-[13.5px] mb-4" style={{ color: 'var(--faint)' }}>
         Pick every category this site is registered or set up for. Where a category has
         sub-categories, pick at least one.
@@ -92,9 +103,7 @@ export default function CategoriesForm({
 
       {!readOnly && (
         <div className="mt-5">
-          <button className="btn btn-p" disabled={pending}>
-            {pending ? 'Saving…' : 'Save categories'}
-          </button>
+          <SubmitButton pendingText="Saving…">Save categories</SubmitButton>
         </div>
       )}
     </form>

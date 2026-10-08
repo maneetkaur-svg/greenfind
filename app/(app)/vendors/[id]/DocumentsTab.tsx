@@ -2,6 +2,7 @@
 import { useActionState, useState } from 'react';
 import { uploadDocument, removeDocument, getDownloadUrl,
          type DocState } from './documentActions';
+import SubmitButton from '@/app/SubmitButton';
 
 export type DocType = {
   code: string; label: string; applies_to: string | null;
@@ -27,7 +28,7 @@ const daysLeft = (d: string | null) => {
 export default function DocumentsTab({
   types, docs, siteId, readOnly,
 }: { types: DocType[]; docs: DocRow[]; siteId: string; readOnly: boolean }) {
-  const [state, action, pending] = useActionState<DocState, FormData>(uploadDocument, {});
+  const [state, action] = useActionState<DocState, FormData>(uploadDocument, {});
   const [open, setOpen] = useState<string | null>(null);
 
   const have = (code: string) => docs.find(d => d.doc_type === code);
@@ -154,9 +155,7 @@ export default function DocumentsTab({
                   )}
                 </div>
                 <div className="flex gap-3 mt-4">
-                  <button className="btn btn-p" disabled={pending}>
-                    {pending ? 'Uploading…' : 'Attach'}
-                  </button>
+                  <SubmitButton pendingText="Uploading…">Attach</SubmitButton>
                   <button type="button" className="btn btn-o" onClick={() => setOpen(null)}>
                     Cancel
                   </button>

@@ -3,6 +3,7 @@ import { createClient, getMe } from '@/lib/supabase/server';
 import { setRole, setActive } from './actions';
 import AddUserForm from './AddUserForm';
 import { ROLE_LABEL } from '@/lib/constants';
+import SubmitButton from '@/app/SubmitButton';
 
 type Row = { id: string; full_name: string; email: string | null;
              role: string; is_active: boolean; created_at: string };
@@ -51,9 +52,10 @@ export default async function UsersPage() {
                         <option value="operations">Operations</option>
                         <option value="user">User</option>
                       </select>
-                      <button className="btn btn-o" style={{ padding: '6px 12px', fontSize: 13 }}>
+                      <SubmitButton className="btn btn-o" pendingText="Saving…"
+                                    style={{ padding: '6px 12px', fontSize: 13 }}>
                         Save
-                      </button>
+                      </SubmitButton>
                     </form>
                   )}
                 </td>
@@ -67,9 +69,10 @@ export default async function UsersPage() {
                     <form action={setActive}>
                       <input type="hidden" name="id" value={r.id} />
                       <input type="hidden" name="active" value={r.is_active ? 'false' : 'true'} />
-                      <button className="btn btn-o" style={{ padding: '6px 12px', fontSize: 13 }}>
+                      <SubmitButton className="btn btn-o" pendingText="Working…"
+                                    style={{ padding: '6px 12px', fontSize: 13 }}>
                         {r.is_active ? 'Disable' : 'Enable'}
-                      </button>
+                      </SubmitButton>
                     </form>
                   )}
                 </td>

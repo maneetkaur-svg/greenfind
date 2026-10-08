@@ -182,6 +182,19 @@ async function VendorRecord({
       : table === 'site_operations' ? (ops ?? {})
       : (certs ?? {});
 
+  // Which tabs have a required field still blank — drives the red dot next
+  // to the tab label; SectionForm highlights the specific field itself.
+  const isBlank = (v: unknown) => v === null || v === undefined || v === '';
+  const incompleteTabs = new Set<string>();
+  for (const s of sections) {
+    const values = source(s.table);
+    if (s.fields.some(f => (!f.showIf || f.showIf(values)) && f.required && isBlank(values[f.key])))
+      incompleteTabs.add(s.id);
+  }
+  const contactList = Array.isArray(contacts) ? contacts : [];
+  if (![1, 2].every(rank => contactList.some(c => c.rank === rank && c.name)))
+    incompleteTabs.add('contacts');
+
   return (
     <>
       <Link href="/vendors" className="text-[13px] font-semibold"
@@ -244,6 +257,11 @@ async function VendorRecord({
                   ? { background: 'var(--p50)', color: 'var(--p700)' }
                   : { color: 'var(--muted)' }}>
             {t.label}
+            {incompleteTabs.has(t.id) && (
+              <span className="inline-block rounded-full ml-1 align-middle"
+                    style={{ width: 7, height: 7, background: 'var(--err)' }}
+                    title="Something required here is still blank" />
+            )}
           </Link>
         ))}
       </div>
@@ -256,7 +274,8 @@ async function VendorRecord({
         )}
         {section && (
           <SectionForm sectionId={section.id} values={source(section.table)}
-                       siteId={id} companyId={site.company_id} readOnly={readOnly} />
+                       siteId={id} companyId={site.company_id} readOnly={readOnly}
+                       isSuperAdmin={me.role === 'super_admin'} />
         )}
         {active === 'contacts' && (
           <ContactsForm contacts={Array.isArray(contacts) ? contacts : []}
@@ -264,6 +283,7 @@ async function VendorRecord({
         )}
         {active === 'categories' && (
           <CategoriesForm cats={cats} siteId={id} readOnly={readOnly}
+                          servicesText={site.services_text as string | null}
                           selectedCats={(Array.isArray(selCats) ? selCats : []).map(r => r.category_id)}
                           selectedSubs={(Array.isArray(selSubs) ? selSubs : []).map(r => r.subcategory_id)} />
         )}

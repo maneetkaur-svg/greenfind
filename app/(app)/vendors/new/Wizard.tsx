@@ -675,6 +675,7 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
               )}
               {current.id === 'review' ? (
                 <button type="button" className="btn btn-p" onClick={submit} disabled={busy}>
+                  {(busy || uploading) && <span className="spinner" aria-hidden="true" />}
                   {uploading || (busy ? 'Creating…' : 'Create vendor')}
                 </button>
               ) : (
