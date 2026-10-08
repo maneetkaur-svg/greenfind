@@ -18,6 +18,9 @@ export type Field = {
   showIf?: (v: Record<string, unknown>) => boolean;
   /** half width on wide screens */
   half?: boolean;
+  /** editable by Super Admin only — operations sees it, disabled. Enforced
+   *  again in actions.ts and by a database trigger, not just hidden here. */
+  superAdminOnly?: boolean;
 };
 
 export type Section = {
@@ -79,7 +82,9 @@ export const SECTIONS: Section[] = [
       { key: 'gstin', label: 'GSTIN', type: 'readonly',
         hint: 'Not editable — it decides which company this site belongs to. Blank for vendors imported without one.' },
       { key: 'industry', label: 'Industry type', type: 'select', required: true,
-        options: INDUSTRIES.map(i => [i.code, i.label] as [string, string]), half: true },
+        options: INDUSTRIES.map(i => [i.code, i.label] as [string, string]), half: true,
+        superAdminOnly: true,
+        hint: 'Reclassifying an existing vendor is Super Admin only — it changes which document rules and tabs apply.' },
       { key: 'site_name', label: 'Site name', type: 'text', max: 120, half: true,
         placeholder: 'Khushkhera Unit' },
       { key: 'address_line1', label: 'Address', type: 'text', required: true, max: 255 },

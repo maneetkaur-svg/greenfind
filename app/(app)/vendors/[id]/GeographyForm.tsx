@@ -2,11 +2,12 @@
 import { useActionState, useState } from 'react';
 import { saveGeography, type SaveState } from './actions';
 import { REGIONS, STATES } from '@/lib/constants';
+import SubmitButton from '@/app/SubmitButton';
 
 export default function GeographyForm({
   selected, siteId, readOnly,
 }: { selected: string[]; siteId: string; readOnly: boolean }) {
-  const [state, action, pending] = useActionState<SaveState, FormData>(saveGeography, {});
+  const [state, action] = useActionState<SaveState, FormData>(saveGeography, {});
   const [picked, setPicked] = useState<string[]>(selected);
   const [openRegions, setOpenRegions] = useState<string[]>(
     REGIONS.filter(([, , sts]) => sts.some(s => selected.includes(s))).map(([k]) => k)
@@ -89,9 +90,7 @@ export default function GeographyForm({
 
       {!readOnly && (
         <div className="mt-5">
-          <button className="btn btn-p" disabled={pending}>
-            {pending ? 'Saving…' : 'Save geography'}
-          </button>
+          <SubmitButton pendingText="Saving…">Save geography</SubmitButton>
         </div>
       )}
     </form>

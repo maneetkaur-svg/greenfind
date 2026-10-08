@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'GreenFind — Vendor Master',
-  description: 'Internal vendor master for Fitsol',
+  title: 'GreenFind — Vendor Management Tool',
+  description: 'Internal vendor management tool for Fitsol',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

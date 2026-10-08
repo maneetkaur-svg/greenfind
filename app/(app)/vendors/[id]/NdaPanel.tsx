@@ -2,6 +2,7 @@
 import { useActionState, useState } from 'react';
 import { uploadDocument, removeDocument, getDownloadUrl, type DocState }
   from './documentActions';
+import SubmitButton from '@/app/SubmitButton';
 
 export type SignedNda = {
   id: string; file_name: string; file_size: number | null;
@@ -14,7 +15,7 @@ const size = (b: number | null) =>
 export default function NdaPanel({
   siteId, signed, signatory, readOnly,
 }: { siteId: string; signed: SignedNda; signatory: string | null; readOnly: boolean }) {
-  const [state, action, pending] = useActionState<DocState, FormData>(uploadDocument, {});
+  const [state, action] = useActionState<DocState, FormData>(uploadDocument, {});
   const [open, setOpen] = useState(false);
 
   const view = async (path: string) => {
@@ -91,9 +92,7 @@ export default function NdaPanel({
             <input id="nda_file" name="file" type="file" required
                    accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*" />
             <div className="flex gap-3 mt-4">
-              <button className="btn btn-p" disabled={pending}>
-                {pending ? 'Uploading…' : 'Attach'}
-              </button>
+              <SubmitButton pendingText="Uploading…">Attach</SubmitButton>
               <button type="button" className="btn btn-o" onClick={() => setOpen(false)}>
                 Cancel
               </button>
