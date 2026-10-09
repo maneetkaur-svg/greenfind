@@ -130,7 +130,7 @@ export const SECTIONS: Section[] = [
     table: 'company',
     blurb: 'All of it required — a vendor with an incomplete bank record cannot be paid.',
     fields: [
-      { key: 'bank_account_name', label: 'Bank account name', type: 'text', required: true, max: 150,
+      { key: 'bank_account_name', label: "A/c holder's name", type: 'text', required: true, max: 150,
         hint: 'Should match the legal name. A mismatch holds up payment.' },
       { key: 'bank_account_number', label: 'Account number', type: 'text', required: true, max: 18, half: true },
       { key: 'ifsc', label: 'IFSC', type: 'text', required: true, max: 11, half: true,
