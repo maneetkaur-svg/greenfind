@@ -21,6 +21,7 @@ export default function SearchForm({ q, industry, sort }: { q?: string; industry
             if (nq) params.set('q', nq);
             if (nIndustry) params.set('industry', nIndustry);
             if (sort) params.set('sort', sort);
+            window.dispatchEvent(new Event('app:navigating'));
             router.push(`/vendors?${params.toString()}`);
           }}>
       <div className="relative w-[300px]">

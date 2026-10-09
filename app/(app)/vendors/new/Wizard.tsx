@@ -75,15 +75,19 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
 
   const industryCats = useMemo(() => cats.filter(c => c.industry === industry), [cats, industry]);
 
-  // Before an industry is chosen, show the ones common to all three — the GST
-  // certificate, PAN and cancelled cheque are needed whatever the vendor does.
+  // Before an industry is chosen, show the ones common to every industry —
+  // the GST certificate, PAN and cancelled cheque are needed whatever the
+  // vendor does. "Every industry" is counted from the data, not a hardcoded
+  // number, so adding a new industry (as Warehouse already did once) never
+  // silently breaks this.
   const docs = useMemo(() => {
     if (industry) return docRules.filter(d => d.industry === industry);
+    const industryCount = new Set(docRules.map(d => d.industry)).size;
     const counts = new Map<string, number>();
     docRules.forEach(d => counts.set(d.code, (counts.get(d.code) ?? 0) + 1));
     const seen = new Set<string>();
     return docRules.filter(d => {
-      if (counts.get(d.code) !== 3 || seen.has(d.code)) return false;
+      if (counts.get(d.code) !== industryCount || seen.has(d.code)) return false;
       seen.add(d.code); return true;
     });
   }, [docRules, industry]);

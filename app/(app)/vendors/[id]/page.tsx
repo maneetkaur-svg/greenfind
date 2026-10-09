@@ -82,13 +82,13 @@ async function VendorRecord({
     supabase.from('site_document')
       .select('id, doc_type, file_name, file_size, doc_number, valid_until, uploaded_at, storage_path')
       .eq('site_id', id).is('superseded_at', null).order('uploaded_at', { ascending: false }),
-    // A vendor imported without an industry has no document rules yet; asking for
-    // "industry = null" would be an error, so ask for nothing instead.
-    site.industry
-      ? supabase.from('document_requirement')
-          .select('doc_type, level, document_type!inner (code, label, applies_to, expiry_tracked, uploaded_by_party, sort)')
-          .eq('industry', site.industry)
-      : Promise.resolve({ data: [], error: null }),
+    // A vendor with no formal industry (imported without one, or given a
+    // not-yet-formal one via "+ Add a new industry type") still needs the
+    // GST/PAN/cheque/etc. baseline — every industry but recycling has the
+    // identical set, so 'transportation' stands in for "the baseline" here.
+    supabase.from('document_requirement')
+      .select('doc_type, level, document_type!inner (code, label, applies_to, expiry_tracked, uploaded_by_party, sort)')
+      .eq('industry', site.industry ?? 'transportation'),
   ]);
 
   const one = <T,>(v: unknown): T | null =>
