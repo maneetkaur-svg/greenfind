@@ -28,6 +28,12 @@ export default function Sidebar({ isSuperAdmin }: { isSuperAdmin: boolean }) {
               Users
             </Link>
           )}
+          <div className="mt-2 pt-2 border-t" style={{ borderColor: 'var(--line)' }}>
+            <Link href="/onboard" target="_blank" rel="noopener noreferrer"
+                  className="nav-tab" style={{ fontSize: 12.5 }}>
+              Vendor sign-up link ↗
+            </Link>
+          </div>
         </nav>
       </div>
     </aside>

@@ -8,6 +8,9 @@ export type Cat = { id: string; industry: string; code: string; label: string; s
 
 const MAX_FILE = 10 * 1024 * 1024;
 const OK_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
+const HOW_HEARD = ['Referral from another vendor', 'Social media', 'Google search', 'Industry event or exhibition', 'Fitsol team reached out', 'Other'];
+type Contact = { name: string; designation: string; mobile: string; email: string };
+const blankContact: Contact = { name: '', designation: '', mobile: '', email: '' };
 
 function FileField({ label, file, onChange }: { label: string; file: File | null; onChange: (f: File | null) => void }) {
   return (
@@ -25,19 +28,24 @@ function FileField({ label, file, onChange }: { label: string; file: File | null
 export default function OnboardForm({ cats }: { cats: Cat[] }) {
   const [legalName, setLegalName] = useState('');
   const [gstin, setGstin] = useState('');
+  const [panNumber, setPanNumber] = useState('');
   const [industry, setIndustry] = useState('');
+  const [isMsme, setIsMsme] = useState<boolean | null>(null);
   const [addressLine1, setAddressLine1] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
   const [pincode, setPincode] = useState('');
   const [location, setLocation] = useState('');
-  const [contactName, setContactName] = useState('');
-  const [mobile, setMobile] = useState('');
-  const [email, setEmail] = useState('');
+  const [primary, setPrimary] = useState<Contact>({ ...blankContact });
+  const [secondary, setSecondary] = useState<Contact>({ ...blankContact });
   const [categoryId, setCategoryId] = useState('');
   const [subIds, setSubIds] = useState<string[]>([]);
   const [geo, setGeo] = useState<string[]>([]);
   const [openRegions, setOpenRegions] = useState<string[]>([]);
+  const [howHeard, setHowHeard] = useState('');
+  const [howHeardOther, setHowHeardOther] = useState('');
+  const [firstTime, setFirstTime] = useState(false);
+  const [consent, setConsent] = useState(false);
   const [gstFile, setGstFile] = useState<File | null>(null);
   const [panFile, setPanFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
@@ -45,7 +53,7 @@ export default function OnboardForm({ cats }: { cats: Cat[] }) {
   const [error, setError] = useState('');
   const [result, setResult] = useState<{ companyCode: string; siteCode: string } | null>(null);
 
-  const pan = panFromGstin(gstin);
+  const derivedPan = panFromGstin(gstin);
   const industryCats = cats.filter(c => c.industry === industry);
   const category = industryCats.find(c => c.id === categoryId);
 
@@ -75,6 +83,7 @@ export default function OnboardForm({ cats }: { cats: Cat[] }) {
 
   const submit = async () => {
     setError('');
+    if (!consent) { setError('You must agree to the data-use disclaimer to submit.'); return; }
     if (!gstFile) { setError('Upload the GST certificate.'); return; }
     if (!panFile) { setError('Upload the PAN card.'); return; }
     for (const f of [gstFile, panFile]) {
@@ -84,10 +93,13 @@ export default function OnboardForm({ cats }: { cats: Cat[] }) {
 
     setBusy(true);
     const res = await submitVendorSignup({
-      gstin, industry, legal_name: legalName,
+      gstin, pan_number: panNumber, industry, legal_name: legalName,
+      is_msme: isMsme === true,
       site: { address_line1: addressLine1, city, state, pincode, location },
-      contact: { name: contactName, mobile, email },
+      contacts: [primary, secondary],
       category_id: categoryId, subcategory_ids: subIds, geography: geo,
+      how_heard: howHeard === 'Other' ? howHeardOther : howHeard,
+      first_time_with_fitsol: firstTime, consent,
     });
     if (res.error || !res.siteId) {
       setBusy(false); setError(res.error ?? 'Something went wrong.');
@@ -133,11 +145,11 @@ export default function OnboardForm({ cats }: { cats: Cat[] }) {
   return (
     <>
       <div className="mb-6">
-        <h1 className="text-[24px] font-bold mb-2">Vendor sign-up</h1>
+        <h1 className="text-[24px] font-bold mb-2" style={{ letterSpacing: '-.01em' }}>HI, WELCOME TO FITSOL</h1>
         <p className="text-[13.5px]" style={{ color: 'var(--muted)' }}>
-          Tell us about your company so we can review and onboard you as a GreenFind vendor.
-          No account or sign-in is needed — fill this in once, submit, and our team takes it
-          from there. Everything marked <span className="req">*</span> is required.
+          Fill in the form below to register as a GreenFind vendor. Our team reviews every
+          submission and connects verified vendors with clients whose requirements match what
+          you already do — real work, not just a listing. Everything marked <span className="req">*</span> is required.
         </p>
       </div>
 
@@ -155,9 +167,23 @@ export default function OnboardForm({ cats }: { cats: Cat[] }) {
           <div>
             <label className="lab">GSTIN <span className="req">*</span></label>
             <input value={gstin} maxLength={15} placeholder="08AYEPP3943P1ZK"
-                   onChange={e => setGstin(e.target.value.toUpperCase())} />
-            {pan && <div className="hint">PAN {pan}</div>}
+                   onChange={e => {
+                     const v = e.target.value.toUpperCase();
+                     setGstin(v);
+                     const derived = panFromGstin(v);
+                     if (derived) setPanNumber(derived);
+                   }} />
           </div>
+          <div>
+            <label className="lab">PAN number <span className="req">*</span></label>
+            <input value={panNumber} maxLength={10} placeholder="AYEPP3943P"
+                   onChange={e => setPanNumber(e.target.value.toUpperCase())} />
+            {derivedPan && panNumber && panNumber !== derivedPan && (
+              <div className="err">This does not match the PAN inside your GSTIN ({derivedPan}).</div>
+            )}
+          </div>
+          <FileField label="GST certificate" file={gstFile} onChange={setGstFile} />
+          <FileField label="PAN card" file={panFile} onChange={setPanFile} />
           <div>
             <label className="lab">Industry type <span className="req">*</span></label>
             <select value={industry} onChange={e => { setIndustry(e.target.value); setCategoryId(''); setSubIds([]); }}>
@@ -165,8 +191,15 @@ export default function OnboardForm({ cats }: { cats: Cat[] }) {
               {INDUSTRIES.map(i => <option key={i.code} value={i.code}>{i.label}</option>)}
             </select>
           </div>
-          <FileField label="GST certificate" file={gstFile} onChange={setGstFile} />
-          <FileField label="PAN card" file={panFile} onChange={setPanFile} />
+          <div>
+            <label className="lab">Registered as MSME? <span className="req">*</span></label>
+            <select value={isMsme === null ? '' : isMsme ? 'true' : 'false'}
+                    onChange={e => setIsMsme(e.target.value === '' ? null : e.target.value === 'true')}>
+              <option value="">Select…</option>
+              <option value="true">Yes</option>
+              <option value="false">No</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -248,7 +281,7 @@ export default function OnboardForm({ cats }: { cats: Cat[] }) {
 
       <div className="card p-6 mb-5">
         <div className="text-[11px] font-bold uppercase tracking-[.07em] mb-1" style={{ color: 'var(--p600)' }}>
-          Geography — locations serviceable
+          Serviceable Geography
         </div>
         <p className="text-[13px] mb-4" style={{ color: 'var(--faint)' }}>
           Pick a region and its states appear, all selected. Untick anything you do not serve.
@@ -303,23 +336,89 @@ export default function OnboardForm({ cats }: { cats: Cat[] }) {
         <div className="text-[11px] font-bold uppercase tracking-[.07em] mb-3" style={{ color: 'var(--p600)' }}>
           Point of contact
         </div>
-        <div className="grid md:grid-cols-3 gap-4">
+        <div className="text-[12px] font-bold mb-3" style={{ color: 'var(--head)' }}>
+          Primary contact <span className="req">*</span>
+        </div>
+        <div className="grid md:grid-cols-4 gap-4 mb-5">
           <div>
-            <label className="lab">POC name <span className="req">*</span></label>
-            <input value={contactName} maxLength={100} onChange={e => setContactName(e.target.value)} />
+            <label className="lab">Name <span className="req">*</span></label>
+            <input value={primary.name} maxLength={100} onChange={e => setPrimary(p => ({ ...p, name: e.target.value }))} />
+          </div>
+          <div>
+            <label className="lab">Designation</label>
+            <input value={primary.designation} maxLength={100} onChange={e => setPrimary(p => ({ ...p, designation: e.target.value }))} />
           </div>
           <div>
             <label className="lab">Mobile number <span className="req">*</span></label>
-            <input value={mobile} maxLength={10} placeholder="9414011223" onChange={e => setMobile(e.target.value)} />
+            <input value={primary.mobile} maxLength={10} placeholder="9414011223" onChange={e => setPrimary(p => ({ ...p, mobile: e.target.value }))} />
           </div>
           <div>
             <label className="lab">Email ID</label>
-            <input value={email} maxLength={255} onChange={e => setEmail(e.target.value)} />
+            <input value={primary.email} maxLength={255} onChange={e => setPrimary(p => ({ ...p, email: e.target.value }))} />
+          </div>
+        </div>
+        <div className="text-[12px] font-bold mb-3 pt-5 border-t" style={{ color: 'var(--head)', borderColor: 'var(--line)' }}>
+          Secondary contact <span className="text-[11px] font-normal" style={{ color: 'var(--faint)' }}>(optional)</span>
+        </div>
+        <div className="grid md:grid-cols-4 gap-4">
+          <div>
+            <label className="lab">Name</label>
+            <input value={secondary.name} maxLength={100} onChange={e => setSecondary(p => ({ ...p, name: e.target.value }))} />
+          </div>
+          <div>
+            <label className="lab">Designation</label>
+            <input value={secondary.designation} maxLength={100} onChange={e => setSecondary(p => ({ ...p, designation: e.target.value }))} />
+          </div>
+          <div>
+            <label className="lab">Mobile number</label>
+            <input value={secondary.mobile} maxLength={10} placeholder="9414011223" onChange={e => setSecondary(p => ({ ...p, mobile: e.target.value }))} />
+          </div>
+          <div>
+            <label className="lab">Email ID</label>
+            <input value={secondary.email} maxLength={255} onChange={e => setSecondary(p => ({ ...p, email: e.target.value }))} />
           </div>
         </div>
       </div>
 
-      <button type="button" className="btn btn-p" disabled={busy} onClick={submit}>
+      <div className="card p-6 mb-5">
+        <div className="text-[11px] font-bold uppercase tracking-[.07em] mb-3" style={{ color: 'var(--p600)' }}>
+          A little more
+        </div>
+        <div className="grid md:grid-cols-2 gap-4 mb-4">
+          <div>
+            <label className="lab">How did you hear about Fitsol?</label>
+            <select value={howHeard} onChange={e => setHowHeard(e.target.value)}>
+              <option value="">Select…</option>
+              {HOW_HEARD.map(h => <option key={h} value={h}>{h}</option>)}
+            </select>
+          </div>
+          {howHeard === 'Other' && (
+            <div>
+              <label className="lab">Please specify</label>
+              <input value={howHeardOther} maxLength={150} onChange={e => setHowHeardOther(e.target.value)} />
+            </div>
+          )}
+        </div>
+        <label className="flex items-start gap-2 text-[13px]" style={{ cursor: 'pointer' }}>
+          <input type="checkbox" checked={firstTime} onChange={e => setFirstTime(e.target.checked)}
+                 style={{ width: 'auto', marginTop: 2 }} />
+          This is the first time we are doing business with Fitsol.
+        </label>
+      </div>
+
+      <div className="card p-6 mb-5">
+        <label className="flex items-start gap-2 text-[13px]" style={{ cursor: 'pointer' }}>
+          <input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)}
+                 style={{ width: 'auto', marginTop: 2 }} />
+          <span>
+            I confirm the data shared in this form is given voluntarily, and Fitsol retains the
+            right to use it for internal circulation and vendor evaluation purposes.
+            <span className="req"> *</span>
+          </span>
+        </label>
+      </div>
+
+      <button type="button" className="btn btn-p" disabled={busy || !consent} onClick={submit}>
         {busy && <span className="spinner" aria-hidden="true" />}
         {uploading || (busy ? 'Submitting…' : 'Submit')}
       </button>

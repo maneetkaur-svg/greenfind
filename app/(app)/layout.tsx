@@ -36,7 +36,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             </span>
           </Link>
 
-          <span className="text-[13px] font-bold justify-self-center" style={{ color: 'var(--muted)' }}>
+          <span className="text-[17px] font-bold justify-self-center" style={{ color: 'var(--muted)' }}>
             Vendor Management Tool
           </span>
 

@@ -11,11 +11,23 @@
 -- linked — a stranger attaching an unverified new site to an existing
 -- vendor's record is a worse outcome than asking them to contact the team.
 --
--- Fields, matching the form exactly: legal name; GSTIN (PAN is read off
--- it, same as everywhere else in the app — never independently typed);
--- industry; registered address; one service category and its
--- sub-categories; serviceable states; one point of contact; a location
--- label. GST/PAN document uploads are a separate step after this returns
+-- Three columns this form needs that nothing else in the app has asked for
+-- before: how a vendor heard about Fitsol, whether this is their first time
+-- doing business with Fitsol, and a record of the data-use consent they
+-- ticked (kept as an audit trail, not just validated-and-discarded).
+alter table public.company add column if not exists how_heard_about_fitsol text;
+alter table public.company add column if not exists first_time_with_fitsol boolean;
+alter table public.company add column if not exists data_consent_given boolean not null default false;
+alter table public.company add column if not exists data_consent_at timestamptz;
+
+-- Fields: legal name; GSTIN (PAN is read off it, same as everywhere else in
+-- the app — the PAN the visitor types is only ever a confirmation check
+-- against that, never stored independently); industry; whether registered
+-- as MSME (yes/no only — no Udyam number or certificate asked for here);
+-- registered address; one service category and its sub-categories;
+-- serviceable states; a primary point of contact (secondary optional);
+-- how they heard about Fitsol; first-time-doing-business flag; the consent
+-- tick. GST/PAN document uploads are a separate step after this returns
 -- (see sql/19_public_doc_upload.sql) — they need a site to attach to,
 -- which does not exist until this function creates it.
 create or replace function public.public_vendor_signup(p jsonb)
@@ -25,27 +37,39 @@ security definer
 set search_path = public
 as $$
 declare
-  v_gstin     text := upper(trim(p->>'gstin'));
-  v_pan       text;
-  v_industry  text := p->>'industry';
-  v_legal     text := trim(coalesce(p->>'legal_name', ''));
-  v_site      jsonb := coalesce(p->'site', '{}'::jsonb);
-  v_contact   jsonb := coalesce(p->'contact', '{}'::jsonb);
-  v_category  uuid := nullif(p->>'category_id', '')::uuid;
-  v_subs      jsonb := coalesce(p->'subcategory_ids', '[]'::jsonb);
-  v_states    jsonb := coalesce(p->'geography', '[]'::jsonb);
-  v_sub       uuid;
-  v_state     text;
-  v_company   uuid;
-  v_code      text;
-  v_site_id   uuid;
-  v_site_cd   text;
-  v_sub_count int;
+  v_gstin      text := upper(trim(p->>'gstin'));
+  v_pan        text;
+  v_pan_typed  text := upper(trim(coalesce(p->>'pan_number', '')));
+  v_industry   text := p->>'industry';
+  v_legal      text := trim(coalesce(p->>'legal_name', ''));
+  v_site       jsonb := coalesce(p->'site', '{}'::jsonb);
+  v_contacts   jsonb := coalesce(p->'contacts', '[]'::jsonb);
+  v_contact    jsonb;
+  v_category   uuid := nullif(p->>'category_id', '')::uuid;
+  v_subs       jsonb := coalesce(p->'subcategory_ids', '[]'::jsonb);
+  v_states     jsonb := coalesce(p->'geography', '[]'::jsonb);
+  v_how_heard  text := nullif(trim(coalesce(p->>'how_heard', '')), '');
+  v_first_time boolean := (p->>'first_time_with_fitsol')::boolean;
+  v_consent    boolean := coalesce((p->>'consent')::boolean, false);
+  v_sub        uuid;
+  v_state      text;
+  v_rank       int := 0;
+  v_company    uuid;
+  v_code       text;
+  v_site_id    uuid;
+  v_site_cd    text;
+  v_sub_count  int;
 begin
   if v_gstin !~ '^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][A-Z0-9]Z[A-Z0-9]$' then
     raise exception 'That GSTIN is not valid. Fifteen characters, with the PAN inside it.';
   end if;
   v_pan := substring(v_gstin from 3 for 10);
+  if v_pan_typed = '' then
+    raise exception 'PAN number is required.';
+  end if;
+  if v_pan_typed <> v_pan then
+    raise exception 'The PAN you entered does not match the one inside your GSTIN. Please check both.';
+  end if;
 
   if v_legal = '' then
     raise exception 'Legal name is required.';
@@ -63,15 +87,23 @@ begin
     raise exception 'Pincode must be six digits and cannot start with zero.';
   end if;
 
-  if coalesce(v_contact->>'name','') = '' then
-    raise exception 'The point of contact needs a name.';
+  if not v_consent then
+    raise exception 'You must agree to the data-use disclaimer to submit.';
   end if;
-  if coalesce(v_contact->>'mobile','') !~ '^[6-9][0-9]{9}$' then
-    raise exception 'Mobile must be ten digits starting 6 to 9.';
+
+  if jsonb_array_length(v_contacts) = 0 or coalesce(v_contacts->0->>'name','') = '' then
+    raise exception 'The primary contact needs a name.';
   end if;
-  if coalesce(v_contact->>'email','') <> '' and v_contact->>'email' !~ '^[^\s@]+@[^\s@]+\.[^\s@]{2,}$' then
-    raise exception 'That email does not look right.';
-  end if;
+  for v_contact in select * from jsonb_array_elements(v_contacts) loop
+    if coalesce(v_contact->>'name','') <> '' then
+      if coalesce(v_contact->>'mobile','') !~ '^[6-9][0-9]{9}$' then
+        raise exception '%: mobile must be ten digits starting 6 to 9.', v_contact->>'name';
+      end if;
+      if coalesce(v_contact->>'email','') <> '' and v_contact->>'email' !~ '^[^\s@]+@[^\s@]+\.[^\s@]{2,}$' then
+        raise exception '%: that email does not look right.', v_contact->>'name';
+      end if;
+    end if;
+  end loop;
 
   if v_category is null then
     raise exception 'Pick a service.';
@@ -96,9 +128,15 @@ begin
   end if;
 
   v_code := public.next_company_code();
-  insert into public.company (company_code, pan, legal_name, migrated_from_portal, created_at)
-  values (v_code, v_pan, v_legal, false, now())
-  returning id into v_company;
+  insert into public.company (
+    company_code, pan, legal_name, is_msme,
+    how_heard_about_fitsol, first_time_with_fitsol, data_consent_given, data_consent_at,
+    migrated_from_portal, created_at
+  ) values (
+    v_code, v_pan, v_legal, coalesce((p->>'is_msme')::boolean, false),
+    v_how_heard, v_first_time, true, now(),
+    false, now()
+  ) returning id into v_company;
 
   v_site_cd := public.next_site_code(v_company);
   begin
@@ -118,8 +156,14 @@ begin
     raise;
   end;
 
-  insert into public.site_contact (site_id, rank, name, mobile, email)
-  values (v_site_id, 1, v_contact->>'name', v_contact->>'mobile', nullif(v_contact->>'email',''));
+  for v_contact in select * from jsonb_array_elements(v_contacts) loop
+    if coalesce(v_contact->>'name','') <> '' then
+      v_rank := v_rank + 1;
+      insert into public.site_contact (site_id, rank, name, designation, mobile, email)
+      values (v_site_id, v_rank, v_contact->>'name', nullif(v_contact->>'designation',''),
+              v_contact->>'mobile', nullif(v_contact->>'email',''));
+    end if;
+  end loop;
 
   insert into public.site_service_category (site_id, category_id) values (v_site_id, v_category);
   for v_sub in select (jsonb_array_elements_text(v_subs))::uuid loop

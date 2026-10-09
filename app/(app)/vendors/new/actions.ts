@@ -97,7 +97,7 @@ export async function createVendor(p: VendorPayload): Promise<CreateResult> {
   if (scErr) return { error: 'Could not generate a site code: ' + scErr.message };
 
   const { data: site, error: siteErr } = await supabase.from('vendor_site').insert({
-    ...p.site, gstin, company_id: companyId, site_code: siteCode,
+    ...p.site, gstin, company_id: companyId, site_code: siteCode, source: 'manual',
     created_by: me.id, updated_by: me.id,
   }).select('id').single();
 

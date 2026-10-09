@@ -11,13 +11,27 @@ const META: Record<string, { label: string; icon: string; color: string; descrip
 };
 const ORDER = ['recycling', 'transportation', 'packaging', 'warehouse', 'unclassified'];
 
-/** The vendor list's dashboard: one metric box per industry, plus a Total box.
- *  Each box's number is "onboarded" (active) vendors, and links to the list
- *  filtered to that industry. A company with plants in two industries counts
- *  once in each, so the boxes can add up to more than the total. */
-export default function DashboardCard({ rows }: { rows: DashRow[] }) {
+/** The vendor list's dashboard: one metric box per industry, plus a Total
+ *  box. Clicking a box toggles that industry into (or out of) the current
+ *  filter, so recycling and packaging can both be selected at once — it
+ *  never just replaces whatever was already picked. Other filters already
+ *  applied (search text, state, sort) are carried over unchanged. */
+export default function DashboardCard({
+  rows, selected, q, state, sort,
+}: { rows: DashRow[]; selected: string[]; q?: string; state?: string; sort?: string }) {
   const total = rows.find(r => r.industry === 'total');
   const byInd = ORDER.map(k => rows.find(r => r.industry === k)).filter((r): r is DashRow => !!r);
+
+  const toggleHref = (code: string) => {
+    const next = selected.includes(code) ? selected.filter(x => x !== code) : [...selected, code];
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    if (next.length) params.set('industry', next.join(','));
+    if (state) params.set('state', state);
+    if (sort) params.set('sort', sort);
+    const qs = params.toString();
+    return qs ? `/vendors?${qs}` : '/vendors';
+  };
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-5" data-testid="dashboard" aria-label="Vendors onboarded">
@@ -31,13 +45,18 @@ export default function DashboardCard({ rows }: { rows: DashRow[] }) {
       </div>
       {byInd.map(r => {
         const m = META[r.industry];
+        const on = selected.includes(r.industry);
         return (
-          <Link key={r.industry} href={`/vendors?industry=${r.industry}`} className="card metric-box p-4 block"
+          <Link key={r.industry} href={toggleHref(r.industry)}
+                className={`card metric-box p-4 block ${on ? 'metric-box-selected' : ''}`}
                 data-testid={`dash-${r.industry}`}
-                title={`${r.active_vendors} active of ${r.vendors} on record · ${r.sites} site${r.sites === 1 ? '' : 's'}`}>
-            <div className="flex items-center gap-3">
-              <span className={`icon-circle ${m.color}`}>{m.icon}</span>
-              <div className="text-[24px] font-bold leading-tight">{r.active_vendors}</div>
+                title={`${r.active_vendors} active of ${r.vendors} on record · ${r.sites} site${r.sites === 1 ? '' : 's'} — click to ${on ? 'remove from' : 'add to'} the filter`}>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-3">
+                <span className={`icon-circle ${m.color}`}>{m.icon}</span>
+                <div className="text-[24px] font-bold leading-tight">{r.active_vendors}</div>
+              </div>
+              {on && <span className="chip c-g tick" style={{ fontSize: 10 }}>✓</span>}
             </div>
             <div className="text-[13px] font-bold mt-3" style={{ color: 'var(--head)' }}>{m.label}</div>
             <div className="text-[11.5px] mt-1" style={{ color: 'var(--faint)' }}>{m.description}</div>
