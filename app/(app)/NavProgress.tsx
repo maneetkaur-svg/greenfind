@@ -25,16 +25,18 @@ function Veil() {
       if (href === current) return;
       setNavigating(true);
     };
-    // A form (the vendor search, for instance) is not a link click, but
-    // submitting one is still "going somewhere" — whether it does that via
-    // router.push or, failing that, a native reload the browser's own
-    // indicator takes over from here, so showing this first is harmless.
-    const onSubmit = () => setNavigating(true);
+    // NOT a blanket 'submit' listener: almost every form in this app (Save
+    // identity, document uploads, contacts, geography…) is a server action
+    // that re-renders in place and never changes the URL — this veil would
+    // show on submit and then never clear, since clearing depends entirely
+    // on the URL changing. Only a form that actually intends to navigate
+    // (SearchForm, for instance) opts in by dispatching this itself.
+    const onNavigating = () => setNavigating(true);
     document.addEventListener('click', onClick);
-    document.addEventListener('submit', onSubmit, true);
+    window.addEventListener('app:navigating', onNavigating);
     return () => {
       document.removeEventListener('click', onClick);
-      document.removeEventListener('submit', onSubmit, true);
+      window.removeEventListener('app:navigating', onNavigating);
     };
   }, [pathname, searchParams]);
 

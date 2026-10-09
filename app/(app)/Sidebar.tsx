@@ -7,20 +7,29 @@ export default function Sidebar({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + '/');
 
   return (
-    <aside className="w-[200px] shrink-0 hidden md:block pt-6">
-      <nav className="sidebar-pane sticky top-[73px] flex flex-col gap-1 p-3">
-        <Link href="/vendors" className={`nav-tab ${isActive('/vendors') ? 'active' : ''}`}>
-          Vendors
-        </Link>
-        <span className="nav-tab disabled" title="Coming soon">
-          RFQs
-        </span>
-        {isSuperAdmin && (
-          <Link href="/users" className={`nav-tab ${isActive('/users') ? 'active' : ''}`}>
-            Users
+    <aside className="w-[200px] shrink-0 hidden md:block pt-6"
+           style={{ minHeight: 'calc(100vh - 97px)' }}>
+      <div className="sidebar-pane h-full">
+        <nav className="sticky top-[89px] flex flex-col gap-1 p-3">
+          <Link href="/vendors" className={`nav-tab ${isActive('/vendors') ? 'active' : ''}`}>
+            Vendors
           </Link>
-        )}
-      </nav>
+          <span className="nav-tab disabled" title="Coming soon">
+            RFQs
+          </span>
+          <span className="nav-tab disabled" title="Coming soon">
+            Vendor Evaluation
+          </span>
+          <span className="nav-tab disabled" title="Coming soon">
+            Analytics
+          </span>
+          {isSuperAdmin && (
+            <Link href="/users" className={`nav-tab ${isActive('/users') ? 'active' : ''}`}>
+              Users
+            </Link>
+          )}
+        </nav>
+      </div>
     </aside>
   );
 }
