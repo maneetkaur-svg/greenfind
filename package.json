@@ -19,7 +19,8 @@
     "cleanup:vendors": "tsx scripts/import/cleanup-vendors.ts",
     "extract:entity": "tsx scripts/import/extract-entity-from-certificates.ts",
     "reclassify:warehouse": "tsx scripts/import/reclassify-warehouse.ts",
-    "remove:aadhaar-only": "tsx scripts/import/remove-aadhaar-only.ts"
+    "remove:aadhaar-only": "tsx scripts/import/remove-aadhaar-only.ts",
+    "import:old-portal": "tsx scripts/import/import-old-portal-vendors.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",
