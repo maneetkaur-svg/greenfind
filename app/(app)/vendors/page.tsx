@@ -21,7 +21,9 @@ function status(r: Row) {
   return ['c-a', 'INCOMPLETE'];
 }
 
-const SOURCE_LABEL: Record<string, string> = { import: 'Import', manual: 'Manual', public_form: 'Public form' };
+const SOURCE_LABEL: Record<string, string> = {
+  import: 'Import', manual: 'Manual', public_form: 'Public form', old_portal: 'Old GreenFind Portal',
+};
 const INDUSTRY_ICON: Record<string, string> = {
   recycling: '♻️', transportation: '🚚', packaging: '📦', warehouse: '🏭',
 };

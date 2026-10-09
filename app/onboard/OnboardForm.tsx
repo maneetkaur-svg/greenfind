@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { INDUSTRIES, REGIONS, STATES, panFromGstin } from '@/lib/constants';
+import { INDUSTRIES, REGIONS, STATES, MSME_CATEGORIES, panFromGstin } from '@/lib/constants';
 import { createClient } from '@/lib/supabase/client';
 import { submitVendorSignup } from './actions';
 
@@ -31,6 +31,8 @@ export default function OnboardForm({ cats }: { cats: Cat[] }) {
   const [panNumber, setPanNumber] = useState('');
   const [industry, setIndustry] = useState('');
   const [isMsme, setIsMsme] = useState<boolean | null>(null);
+  const [msmeCategory, setMsmeCategory] = useState('');
+  const [udyamNumber, setUdyamNumber] = useState('');
   const [addressLine1, setAddressLine1] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
@@ -86,6 +88,10 @@ export default function OnboardForm({ cats }: { cats: Cat[] }) {
     if (!consent) { setError('You must agree to the data-use disclaimer to submit.'); return; }
     if (!gstFile) { setError('Upload the GST certificate.'); return; }
     if (!panFile) { setError('Upload the PAN card.'); return; }
+    if (isMsme === true && (!msmeCategory || !udyamNumber.trim())) {
+      setError('An MSME needs both an enterprise category and a Udyam number.');
+      return;
+    }
     for (const f of [gstFile, panFile]) {
       if (f.size > MAX_FILE) { setError(`${f.name} is larger than 10 MB.`); return; }
       if (!OK_TYPES.includes(f.type)) { setError('Only PDF, JPG and PNG are accepted.'); return; }
@@ -95,6 +101,8 @@ export default function OnboardForm({ cats }: { cats: Cat[] }) {
     const res = await submitVendorSignup({
       gstin, pan_number: panNumber, industry, legal_name: legalName,
       is_msme: isMsme === true,
+      msme_category: isMsme === true ? msmeCategory : '',
+      udyam_number: isMsme === true ? udyamNumber.trim() : '',
       site: { address_line1: addressLine1, city, state, pincode, location },
       contacts: [primary, secondary],
       category_id: categoryId, subcategory_ids: subIds, geography: geo,
@@ -200,6 +208,22 @@ export default function OnboardForm({ cats }: { cats: Cat[] }) {
               <option value="false">No</option>
             </select>
           </div>
+          {isMsme === true && (
+            <>
+              <div>
+                <label className="lab">Enterprise category <span className="req">*</span></label>
+                <select value={msmeCategory} onChange={e => setMsmeCategory(e.target.value)}>
+                  <option value="">Select…</option>
+                  {MSME_CATEGORIES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="lab">Udyam number <span className="req">*</span></label>
+                <input value={udyamNumber} maxLength={19} placeholder="UDYAM-RJ-02-0041178"
+                       onChange={e => setUdyamNumber(e.target.value)} />
+              </div>
+            </>
+          )}
         </div>
       </div>
 

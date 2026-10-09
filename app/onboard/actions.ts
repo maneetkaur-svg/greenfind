@@ -7,6 +7,8 @@ export type SignupPayload = {
   industry: string;
   legal_name: string;
   is_msme: boolean;
+  msme_category: string;
+  udyam_number: string;
   site: { address_line1: string; city: string; state: string; pincode: string; location: string };
   contacts: { name: string; designation: string; mobile: string; email: string }[];
   category_id: string;
