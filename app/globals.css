@@ -134,7 +134,9 @@ textarea:focus { border-color: var(--p500); box-shadow: 0 0 0 3px var(--p50); }
 
 input:disabled, select:disabled, textarea:disabled {
   background: var(--surface-2);
-  color: var(--faint);
+  color: var(--muted);
+  -webkit-text-fill-color: var(--muted);
+  opacity: 1;
   cursor: not-allowed;
 }
 input::placeholder, textarea::placeholder { color: #9A9DB0; }
