@@ -67,6 +67,12 @@ h1,h2,h3,h4 { color: var(--head); letter-spacing: -.02em; }
 .c-a { background: var(--warn-l); color: var(--warn-d); }
 .c-r { background: var(--err-l); color:#7F1D1D; }
 .c-n { background: var(--surface-2); color: var(--faint); border:1px solid var(--line); }
+/* The industry multi-select on the vendor list — a <details> disclosure
+   used as a zero-JS dropdown, so the default marker needs hiding since the
+   button text already carries its own ▾. */
+summary::-webkit-details-marker { display: none; }
+summary::marker { content: ''; }
+
 /* A round icon badge, used on the dashboard's metric boxes and the
    vendor-initials avatar in the list. Pass a size inline where it differs. */
 .icon-circle {
@@ -85,6 +91,7 @@ h1,h2,h3,h4 { color: var(--head); letter-spacing: -.02em; }
    link elsewhere, to hint it is clickable. */
 .metric-box { transition: transform .14s, box-shadow .14s; }
 .metric-box:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(20,42,35,.08); }
+.metric-box-selected { border-color: var(--p500); background: var(--p50); }
 
 /* Pagination, bottom of the vendor list. */
 .page-btn {

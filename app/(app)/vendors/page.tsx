@@ -9,7 +9,7 @@ type Row = {
   id: string; site_code: string; legal_name: string;
   gstin: string | null; industry: string | null; state: string | null; city: string | null;
   status: string | null; legacy_vendor_code: string | null; services_text: string | null;
-  aadhaar_last4: string | null;
+  aadhaar_last4: string | null; source: string | null;
   company_id: string; company_code: string; sibling_sites: number;
   docs_attached: number; docs_verified: number; docs_required: number;
   has_pending_request: boolean; updated_at: string;
@@ -21,6 +21,7 @@ function status(r: Row) {
   return ['c-a', 'INCOMPLETE'];
 }
 
+const SOURCE_LABEL: Record<string, string> = { import: 'Import', manual: 'Manual', public_form: 'Public form' };
 const INDUSTRY_ICON: Record<string, string> = {
   recycling: '♻️', transportation: '🚚', packaging: '📦', warehouse: '🏭',
 };
@@ -51,14 +52,25 @@ function pageNumbers(current: number, total: number): (number | '…')[] {
 
 export default async function VendorsPage({
   searchParams,
-}: { searchParams: Promise<{ q?: string; industry?: string; sort?: string; page?: string }> }) {
-  const { q, industry, sort, page: pageParam } = await searchParams;
+}: { searchParams: Promise<{ q?: string; industry?: string; state?: string; sort?: string; page?: string }> }) {
+  const { q, industry, state, sort, page: pageParam } = await searchParams;
   const me = await getMe();
   const supabase = await createClient();
 
+  const industries = (industry ?? '').split(',').filter(Boolean);
+  const realIndustries = industries.filter(i => i !== 'unclassified');
+  const wantsUnclassified = industries.includes('unclassified');
+
   let query = supabase.from('site_summary').select('*').order('updated_at', { ascending: false });
-  if (industry === 'unclassified') query = query.is('industry', null);
-  else if (industry) query = query.eq('industry', industry);
+  if (industries.length) {
+    if (wantsUnclassified && realIndustries.length)
+      query = query.or(`industry.is.null,industry.in.(${realIndustries.join(',')})`);
+    else if (wantsUnclassified)
+      query = query.is('industry', null);
+    else
+      query = query.in('industry', realIndustries);
+  }
+  if (state) query = query.eq('state', state);
   const { data, error } = await query;
 
   // The dashboard is a nicety: if the view is not there yet (06_data_fit.sql not run) the page still works.
@@ -80,6 +92,7 @@ export default async function VendorsPage({
     const params = new URLSearchParams();
     if (q) params.set('q', q);
     if (industry) params.set('industry', industry);
+    if (state) params.set('state', state);
     params.set('sort', next);
     return `/vendors?${params.toString()}`;
   };
@@ -92,18 +105,45 @@ export default async function VendorsPage({
     const params = new URLSearchParams();
     if (q) params.set('q', q);
     if (industry) params.set('industry', industry);
+    if (state) params.set('state', state);
     if (sort) params.set('sort', sort);
     params.set('page', String(p));
     return `/vendors?${params.toString()}`;
   };
-  const clearHref = sort ? `/vendors?sort=${sort}` : '/vendors';
+  const clearParams = new URLSearchParams();
+  if (sort) clearParams.set('sort', sort);
+  const clearHref = clearParams.toString() ? `/vendors?${clearParams.toString()}` : '/vendors';
+
+  // Contact (primary POC) and service category — fetched only for the 20
+  // rows actually shown, not the whole filtered set, since nothing else on
+  // this page needs them.
+  const pageIds = pageRows.map(r => r.id);
+  const [{ data: contactRows }, { data: catRows }] = pageIds.length
+    ? await Promise.all([
+        supabase.from('site_contact').select('site_id, name, mobile').eq('rank', 1).in('site_id', pageIds),
+        supabase.from('site_service_category')
+          .select('site_id, service_category!inner(label)').in('site_id', pageIds),
+      ])
+    : [{ data: [] }, { data: [] }];
+
+  const contactBySite = new Map((contactRows ?? []).map(c => [c.site_id, c]));
+  const servicesBySite = new Map<string, string[]>();
+  for (const c of (catRows ?? []) as { site_id: string; service_category: { label: string } | { label: string }[] }[]) {
+    const cat = Array.isArray(c.service_category) ? c.service_category[0] : c.service_category;
+    if (!cat) continue;
+    const list = servicesBySite.get(c.site_id) ?? [];
+    list.push(cat.label);
+    servicesBySite.set(c.site_id, list);
+  }
 
   return (
     <>
-      {Array.isArray(dash) && dash.length > 0 && <DashboardCard rows={dash as DashRow[]} />}
+      {Array.isArray(dash) && dash.length > 0 && (
+        <DashboardCard rows={dash as DashRow[]} selected={industries} q={q} state={state} sort={sort} />
+      )}
 
       <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
-        <SearchForm q={q} industry={industry} sort={sort} />
+        <SearchForm q={q} industries={industries} state={state} sort={sort} />
         {me?.role !== 'user' && (
           <div className="flex gap-2">
             {me?.role === 'super_admin' && <Link href="/vendors/import" className="btn btn-o">Import</Link>}
@@ -122,12 +162,14 @@ export default async function VendorsPage({
         </div>
       )}
 
-      {!error && (q || industry) && (
-        <div className="flex items-center gap-2 mb-4 text-[13px] font-semibold" style={{ color: 'var(--p700)' }}>
+      {!error && (q || industries.length > 0 || state) && (
+        <div className="flex items-center gap-2 mb-4 text-[13px] font-semibold flex-wrap" style={{ color: 'var(--p700)' }}>
           <span>☷</span>
           <span>
-            {industry && `Industry: ${industry === 'unclassified' ? 'Others' : INDUSTRIES.find(i => i.code === industry)?.label ?? industry}`}
-            {q && industry && ' · '}
+            {industries.length > 0 && `Industry: ${industries.map(i => i === 'unclassified' ? 'Others' : INDUSTRIES.find(x => x.code === i)?.label ?? i).join(', ')}`}
+            {industries.length > 0 && (state || q) && ' · '}
+            {state && `State: ${state}`}
+            {state && q && ' · '}
             {q && `Matching "${q}"`}
           </span>
           <Link href={clearHref} style={{ color: 'var(--faint)', textDecoration: 'underline' }}>Clear</Link>
@@ -138,7 +180,7 @@ export default async function VendorsPage({
         <div className="card p-12 text-center">
           <h3 className="text-[18px] font-bold mb-1">No vendors yet</h3>
           <p className="text-[13.5px] mb-4" style={{ color: 'var(--muted)' }}>
-            {q || industry ? 'Nothing matches that filter.' : 'Add the first one to get started.'}
+            {q || industries.length || state ? 'Nothing matches that filter.' : 'Add the first one to get started.'}
           </p>
           {me?.role !== 'user' && <Link href="/vendors/new" className="btn btn-p">+ Add vendor</Link>}
         </div>
@@ -157,14 +199,16 @@ export default async function VendorsPage({
                     </span>
                   </Link>
                 </th>
-                <th>Industry</th><th>State (by GST)</th>
-                <th>Documents</th><th>Completeness</th><th></th>
+                <th>Industry / service</th><th>State (by GST)</th>
+                <th>Contact</th><th>Documents</th><th>Completeness</th><th>Source</th><th></th>
               </tr>
             </thead>
             <tbody>
               {pageRows.map(r => {
                 const [cls, label] = status(r);
                 const icon = INDUSTRY_ICON[r.industry ?? ''];
+                const contact = contactBySite.get(r.id);
+                const services = servicesBySite.get(r.id);
                 return (
                   <tr key={r.id} className="relative hover:bg-[var(--surface-2)] cursor-pointer">
                     <td>
@@ -194,8 +238,21 @@ export default async function VendorsPage({
                       ) : (
                         <span className="chip c-n">UNCLASSIFIED</span>
                       )}
+                      {services && services.length > 0 && (
+                        <div className="text-[11.5px] mt-1" style={{ color: 'var(--faint)' }}>{services.join(', ')}</div>
+                      )}
                     </td>
                     <td className="text-[13px]">{r.state ?? '—'}</td>
+                    <td>
+                      {contact ? (
+                        <>
+                          <div className="text-[13px] font-semibold" style={{ color: 'var(--head)' }}>{contact.name}</div>
+                          <div className="text-[11.5px]" style={{ color: 'var(--faint)' }}>{contact.mobile ?? '—'}</div>
+                        </>
+                      ) : (
+                        <span style={{ color: 'var(--faint)' }}>—</span>
+                      )}
+                    </td>
                     <td>
                       <div className="text-[13px] font-semibold" style={{ color: 'var(--head)' }}>
                         {r.docs_attached}/{r.docs_required}
@@ -208,6 +265,7 @@ export default async function VendorsPage({
                         <span className="chip c-a ml-1">REQUEST OPEN</span>
                       )}
                     </td>
+                    <td className="text-[13px]">{r.source ? SOURCE_LABEL[r.source] ?? r.source : '—'}</td>
                     <td className="text-center" style={{ color: 'var(--faint)' }}>›</td>
                   </tr>
                 );
