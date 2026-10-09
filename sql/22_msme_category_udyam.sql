@@ -1,25 +1,11 @@
--- The public sign-up form deliberately asks MSME as plain yes/no only — no
--- category, no Udyam number (per explicit request: "ask registered as MSME
--- only ... don't ask MSME document"). The msme_complete constraint already
--- has exactly one escape hatch for "is_msme=true with nothing else", for a
--- migrated_from_portal company. A public submission needs the same escape
--- hatch for the same reason: the fuller detail is something staff fill in
--- during review, not something this form collects. Rather than overload
--- migrated_from_portal (which means something specific and different —
--- came from the legacy system), this adds its own flag so each exception
--- stays legible on its own.
-alter table public.company add column if not exists self_registered boolean not null default false;
-
-alter table public.company drop constraint if exists msme_complete;
-alter table public.company add constraint msme_complete
-  check (is_msme is not true
-         or (msme_category is not null and udyam_number is not null)
-         or migrated_from_portal
-         or self_registered);
-
--- Redefine once more so the company it creates is marked self_registered —
--- same reason as every other redefinition in this pair of files: the
--- column it needs did not exist until the statement above ran.
+-- The public form now collects enterprise category and Udyam number
+-- whenever "Registered as MSME?" is Yes — the same requirement the rest of
+-- the app already enforces (company.msme_complete, sql/06_data_fit.sql),
+-- so this needs no schema or constraint change at all, just the RPC
+-- actually asking for and inserting the two fields instead of leaving them
+-- null. Replaces the self_registered escape hatch from the previous
+-- revision of this migration, which is no longer needed now that the form
+-- supplies complete data instead of bypassing the check.
 create or replace function public.public_vendor_signup(p jsonb)
 returns jsonb
 language plpgsql
@@ -27,28 +13,31 @@ security definer
 set search_path = public
 as $$
 declare
-  v_gstin      text := upper(trim(p->>'gstin'));
-  v_pan        text;
-  v_pan_typed  text := upper(trim(coalesce(p->>'pan_number', '')));
-  v_industry   text := p->>'industry';
-  v_legal      text := trim(coalesce(p->>'legal_name', ''));
-  v_site       jsonb := coalesce(p->'site', '{}'::jsonb);
-  v_contacts   jsonb := coalesce(p->'contacts', '[]'::jsonb);
-  v_contact    jsonb;
-  v_category   uuid := nullif(p->>'category_id', '')::uuid;
-  v_subs       jsonb := coalesce(p->'subcategory_ids', '[]'::jsonb);
-  v_states     jsonb := coalesce(p->'geography', '[]'::jsonb);
-  v_how_heard  text := nullif(trim(coalesce(p->>'how_heard', '')), '');
-  v_first_time boolean := (p->>'first_time_with_fitsol')::boolean;
-  v_consent    boolean := coalesce((p->>'consent')::boolean, false);
-  v_sub        uuid;
-  v_state      text;
-  v_rank       int := 0;
-  v_company    uuid;
-  v_code       text;
-  v_site_id    uuid;
-  v_site_cd    text;
-  v_sub_count  int;
+  v_gstin         text := upper(trim(p->>'gstin'));
+  v_pan           text;
+  v_pan_typed     text := upper(trim(coalesce(p->>'pan_number', '')));
+  v_industry      text := p->>'industry';
+  v_legal         text := trim(coalesce(p->>'legal_name', ''));
+  v_is_msme       boolean := coalesce((p->>'is_msme')::boolean, false);
+  v_msme_category text := nullif(trim(coalesce(p->>'msme_category', '')), '');
+  v_udyam_number  text := nullif(trim(coalesce(p->>'udyam_number', '')), '');
+  v_site          jsonb := coalesce(p->'site', '{}'::jsonb);
+  v_contacts      jsonb := coalesce(p->'contacts', '[]'::jsonb);
+  v_contact       jsonb;
+  v_category      uuid := nullif(p->>'category_id', '')::uuid;
+  v_subs          jsonb := coalesce(p->'subcategory_ids', '[]'::jsonb);
+  v_states        jsonb := coalesce(p->'geography', '[]'::jsonb);
+  v_how_heard     text := nullif(trim(coalesce(p->>'how_heard', '')), '');
+  v_first_time    boolean := (p->>'first_time_with_fitsol')::boolean;
+  v_consent       boolean := coalesce((p->>'consent')::boolean, false);
+  v_sub           uuid;
+  v_state         text;
+  v_rank          int := 0;
+  v_company       uuid;
+  v_code          text;
+  v_site_id       uuid;
+  v_site_cd       text;
+  v_sub_count     int;
 begin
   if v_gstin !~ '^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][A-Z0-9]Z[A-Z0-9]$' then
     raise exception 'That GSTIN is not valid. Fifteen characters, with the PAN inside it.';
@@ -67,6 +56,10 @@ begin
 
   if v_industry is null or v_industry not in ('recycling','packaging','transportation','warehouse') then
     raise exception 'Choose an industry type.';
+  end if;
+
+  if v_is_msme and (v_msme_category is null or v_udyam_number is null) then
+    raise exception 'An MSME needs both an enterprise category and a Udyam number.';
   end if;
 
   if coalesce(v_site->>'address_line1','') = '' or coalesce(v_site->>'city','') = ''
@@ -119,13 +112,13 @@ begin
 
   v_code := public.next_company_code();
   insert into public.company (
-    company_code, pan, legal_name, is_msme,
+    company_code, pan, legal_name, is_msme, msme_category, udyam_number,
     how_heard_about_fitsol, first_time_with_fitsol, data_consent_given, data_consent_at,
-    migrated_from_portal, self_registered, created_at
+    migrated_from_portal, created_at
   ) values (
-    v_code, v_pan, v_legal, coalesce((p->>'is_msme')::boolean, false),
+    v_code, v_pan, v_legal, v_is_msme, v_msme_category::msme_category, v_udyam_number,
     v_how_heard, v_first_time, true, now(),
-    false, true, now()
+    false, now()
   ) returning id into v_company;
 
   v_site_cd := public.next_site_code(v_company);
