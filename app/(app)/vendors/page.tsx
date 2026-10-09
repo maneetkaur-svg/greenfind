@@ -3,6 +3,7 @@ import { createClient, getMe } from '@/lib/supabase/server';
 import { INDUSTRIES } from '@/lib/constants';
 import DashboardCard, { type DashRow } from './DashboardCard';
 import SearchForm from './SearchForm';
+import RowLink from './RowLink';
 
 type Row = {
   id: string; site_code: string; legal_name: string;
@@ -167,8 +168,7 @@ export default async function VendorsPage({
                 return (
                   <tr key={r.id} className="relative hover:bg-[var(--surface-2)] cursor-pointer">
                     <td>
-                      <Link href={`/vendors/${r.id}`} className="absolute inset-0" style={{ zIndex: 1 }}
-                            aria-label={r.legal_name} />
+                      <RowLink href={`/vendors/${r.id}`} label={r.legal_name} />
                       <div className="flex items-center gap-3">
                         <span className={`icon-circle ${avatarColor(r.legal_name)}`}
                               style={{ width: 38, height: 38, fontSize: 13 }}>
