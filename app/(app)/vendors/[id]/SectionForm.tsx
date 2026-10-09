@@ -58,9 +58,14 @@ export default function SectionForm({
                 {f.superAdminOnly && !isSuperAdmin && <span className="chip c-n ml-1">SUPER ADMIN</span>}
               </label>
 
-              {f.type === 'readonly' ? (
+              {f.type === 'readonly' || (f.superAdminOnly && !isSuperAdmin) ? (
                 <>
-                  <input id={f.key} value={f.options?.find(([val]) => val === v)?.[1] ?? String(v ?? '')} disabled />
+                  {/* A disabled <select> renders faint-to-illegible on some
+                      browsers regardless of our own CSS, so a value locked by
+                      permission (not just the readonly fields that are
+                      always locked) gets the same plain, clearly-visible
+                      text treatment rather than a native disabled control. */}
+                  <input id={f.key} value={f.options?.find(([val]) => val === v)?.[1] ?? (String(v ?? '') || '—')} disabled />
                   {f.key === 'entity' && !gstin && (
                     <div className="hint">
                       {aadhaarLast4 ? `No GST — Aadhaar ••••${aadhaarLast4} on file instead.` : 'No GST or Aadhaar on file.'}
