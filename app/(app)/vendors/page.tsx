@@ -116,19 +116,13 @@ export default async function VendorsPage({
   if (sort) clearParams.set('sort', sort);
   const clearHref = clearParams.toString() ? `/vendors?${clearParams.toString()}` : '/vendors';
 
-  // Contact (primary POC) and service category — fetched only for the 20
-  // rows actually shown, not the whole filtered set, since nothing else on
-  // this page needs them.
+  // Service category — fetched only for the 20 rows actually shown, not the
+  // whole filtered set, since nothing else on this page needs it.
   const pageIds = pageRows.map(r => r.id);
-  const [{ data: contactRows }, { data: catRows }] = pageIds.length
-    ? await Promise.all([
-        supabase.from('site_contact').select('site_id, name, mobile').eq('rank', 1).in('site_id', pageIds),
-        supabase.from('site_service_category')
-          .select('site_id, service_category!inner(label)').in('site_id', pageIds),
-      ])
-    : [{ data: [] }, { data: [] }];
+  const { data: catRows } = pageIds.length
+    ? await supabase.from('site_service_category').select('site_id, service_category!inner(label)').in('site_id', pageIds)
+    : { data: [] };
 
-  const contactBySite = new Map((contactRows ?? []).map(c => [c.site_id, c]));
   const servicesBySite = new Map<string, string[]>();
   for (const c of (catRows ?? []) as { site_id: string; service_category: { label: string } | { label: string }[] }[]) {
     const cat = Array.isArray(c.service_category) ? c.service_category[0] : c.service_category;
@@ -202,14 +196,13 @@ export default async function VendorsPage({
                   </Link>
                 </th>
                 <th>Industry / service</th><th>State (by GST)</th>
-                <th>Contact</th><th>Documents</th><th>Completeness</th><th>Source</th><th></th>
+                <th>Documents</th><th>Completeness</th><th>Source</th><th></th>
               </tr>
             </thead>
             <tbody>
               {pageRows.map(r => {
                 const [cls, label] = status(r);
                 const icon = INDUSTRY_ICON[r.industry ?? ''];
-                const contact = contactBySite.get(r.id);
                 const services = servicesBySite.get(r.id);
                 return (
                   <tr key={r.id} className="relative hover:bg-[var(--surface-2)] cursor-pointer">
@@ -245,16 +238,6 @@ export default async function VendorsPage({
                       )}
                     </td>
                     <td className="text-[13px]">{r.state ?? '—'}</td>
-                    <td>
-                      {contact ? (
-                        <>
-                          <div className="text-[13px] font-semibold" style={{ color: 'var(--head)' }}>{contact.name}</div>
-                          <div className="text-[11.5px]" style={{ color: 'var(--faint)' }}>{contact.mobile ?? '—'}</div>
-                        </>
-                      ) : (
-                        <span style={{ color: 'var(--faint)' }}>—</span>
-                      )}
-                    </td>
                     <td>
                       <div className="text-[13px] font-semibold" style={{ color: 'var(--head)' }}>
                         {r.docs_attached}/{r.docs_required}
