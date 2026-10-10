@@ -21,7 +21,8 @@
     "reclassify:warehouse": "tsx scripts/import/reclassify-warehouse.ts",
     "remove:aadhaar-only": "tsx scripts/import/remove-aadhaar-only.ts",
     "import:old-portal": "tsx scripts/import/import-old-portal-vendors.ts",
-    "hard-delete:sampled": "tsx scripts/import/hard-delete-sampled-vendors.ts"
+    "hard-delete:sampled": "tsx scripts/import/hard-delete-sampled-vendors.ts",
+    "import:catalogue": "tsx scripts/import/import-vendor-catalogue.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",
