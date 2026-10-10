@@ -12,16 +12,25 @@ const HOW_HEARD = ['Referral from another vendor', 'Social media', 'Google searc
 type Contact = { name: string; designation: string; mobile: string; email: string };
 const blankContact: Contact = { name: '', designation: '', mobile: '', email: '' };
 
-function FileField({ label, file, onChange }: { label: string; file: File | null; onChange: (f: File | null) => void }) {
+function FileField({ label, file, onChange, required = true }: {
+  label: string; file: File | null; onChange: (f: File | null) => void; required?: boolean;
+}) {
   return (
     <div>
-      <label className="lab">{label} <span className="req">*</span></label>
-      <input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*"
-             onChange={e => onChange(e.target.files?.[0] ?? null)} />
-      {file && <div className="hint mt-1">{file.name} · {(file.size / 1024).toFixed(0)} KB</div>}
+      <label className="lab">{label} {required && <span className="req">*</span>}</label>
+      <label className="file-drop">
+        <div className="file-drop-icon">📄</div>
+        <div className="file-drop-label">{file ? file.name : 'Click to upload a file'}</div>
+        <div className="file-drop-sub">{file ? `${(file.size / 1024).toFixed(0)} KB — click to replace` : 'PDF, JPG or PNG · up to 10 MB'}</div>
+        <input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*" className="sr-only"
+               onChange={e => onChange(e.target.files?.[0] ?? null)} />
+      </label>
     </div>
   );
 }
+
+type DocType = 'gst' | 'pan' | 'udyam';
+const DOC_LABEL: Record<DocType, string> = { gst: 'GST certificate', pan: 'PAN card', udyam: 'Udyam certificate' };
 
 /** A single, continuously-scrolling page — a vendor fills this in start to
  *  finish and submits once, like a Google Form, not a multi-step wizard. */
@@ -50,6 +59,7 @@ export default function OnboardForm({ cats }: { cats: Cat[] }) {
   const [consent, setConsent] = useState(false);
   const [gstFile, setGstFile] = useState<File | null>(null);
   const [panFile, setPanFile] = useState<File | null>(null);
+  const [udyamFile, setUdyamFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState('');
   const [error, setError] = useState('');
@@ -69,18 +79,18 @@ export default function OnboardForm({ cats }: { cats: Cat[] }) {
     }
   };
 
-  const uploadDoc = async (siteId: string, docType: 'gst' | 'pan', file: File) => {
+  const uploadDoc = async (siteId: string, docType: DocType, file: File) => {
     const supabase = createClient();
     const safe = file.name.replace(/[^A-Za-z0-9._-]/g, '_');
     const path = `${siteId}/${docType}/${Date.now()}_${safe}`;
     const { error: upErr } = await supabase.storage.from('vendor-documents')
       .upload(path, file, { contentType: file.type || undefined, upsert: false });
-    if (upErr) throw new Error(`${docType === 'gst' ? 'GST certificate' : 'PAN card'}: ${upErr.message}`);
+    if (upErr) throw new Error(`${DOC_LABEL[docType]}: ${upErr.message}`);
     const { error: rowErr } = await supabase.from('site_document').insert({
       site_id: siteId, doc_type: docType, storage_path: path,
       file_name: file.name, file_size: file.size, mime_type: file.type || null,
     });
-    if (rowErr) throw new Error(`${docType === 'gst' ? 'GST certificate' : 'PAN card'}: ${rowErr.message}`);
+    if (rowErr) throw new Error(`${DOC_LABEL[docType]}: ${rowErr.message}`);
   };
 
   const submit = async () => {
@@ -92,7 +102,7 @@ export default function OnboardForm({ cats }: { cats: Cat[] }) {
       setError('An MSME needs both an enterprise category and a Udyam number.');
       return;
     }
-    for (const f of [gstFile, panFile]) {
+    for (const f of [gstFile, panFile, ...(udyamFile ? [udyamFile] : [])]) {
       if (f.size > MAX_FILE) { setError(`${f.name} is larger than 10 MB.`); return; }
       if (!OK_TYPES.includes(f.type)) { setError('Only PDF, JPG and PNG are accepted.'); return; }
     }
@@ -120,6 +130,10 @@ export default function OnboardForm({ cats }: { cats: Cat[] }) {
       await uploadDoc(res.siteId, 'gst', gstFile);
       setUploading('Uploading PAN card…');
       await uploadDoc(res.siteId, 'pan', panFile);
+      if (isMsme === true && udyamFile) {
+        setUploading('Uploading Udyam certificate…');
+        await uploadDoc(res.siteId, 'udyam', udyamFile);
+      }
     } catch (e) {
       // The record itself is already created — a document that failed to
       // attach is not worth losing that over. Reviewers can ask for it again.
@@ -221,6 +235,9 @@ export default function OnboardForm({ cats }: { cats: Cat[] }) {
                 <label className="lab">Udyam number <span className="req">*</span></label>
                 <input value={udyamNumber} maxLength={19} placeholder="UDYAM-RJ-02-0041178"
                        onChange={e => setUdyamNumber(e.target.value)} />
+              </div>
+              <div className="md:col-span-2">
+                <FileField label="Udyam registration certificate" file={udyamFile} onChange={setUdyamFile} required={false} />
               </div>
             </>
           )}

@@ -111,6 +111,20 @@ summary::marker { content: ''; }
 label.lab { display:block; font-size:13px; font-weight:700; color:var(--head); margin-bottom:5px; }
 .req { color: var(--err); }
 
+/* A large, obviously-clickable file upload target for the public sign-up
+   form — a plain <input type="file"> reads as decoration next to styled
+   text fields, so vendors skipped it. The whole card is the label. */
+.file-drop {
+  display: block; border: 2px dashed var(--line-2); border-radius: 12px;
+  padding: 22px 16px; text-align: center; cursor: pointer; transition: .15s;
+  background: var(--surface-2);
+}
+.file-drop:hover, .file-drop:focus-within { border-color: var(--p500); background: var(--p50); }
+.file-drop .file-drop-icon { font-size: 26px; line-height: 1; }
+.file-drop .file-drop-label { font-size: 13.5px; font-weight: 700; color: var(--head); margin-top: 8px; }
+.file-drop:hover .file-drop-label { color: var(--p700); }
+.file-drop .file-drop-sub { font-size: 11.5px; color: var(--faint); margin-top: 2px; }
+
 /* Every text-like control, not just the ones with an explicit type attribute.
    An <input> with no type defaults to text and was previously unstyled, which
    is why some boxes were invisible until focused. */
