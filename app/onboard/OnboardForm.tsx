@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { INDUSTRIES, REGIONS, STATES, MSME_CATEGORIES, panFromGstin } from '@/lib/constants';
 import { createClient } from '@/lib/supabase/client';
 import { submitVendorSignup } from './actions';
@@ -32,6 +32,23 @@ function FileField({ label, file, onChange, required = true }: {
 type DocType = 'gst' | 'pan' | 'udyam';
 const DOC_LABEL: Record<DocType, string> = { gst: 'GST certificate', pan: 'PAN card', udyam: 'Udyam certificate' };
 
+// The postal API's own state names don't always match this app's canonical
+// GST-registry spelling (STATES, from lib/constants) — close enough for a
+// human to read, not close enough for a controlled <select> to match. Only
+// the handful that are known to differ are listed; anything else either
+// already matches exactly or is left for the vendor to pick by hand.
+const STATE_ALIASES: Record<string, string> = {
+  'Dadra and Nagar Haveli and Daman and Diu': 'DNH & Daman Diu',
+  'Andaman and Nicobar Islands': 'Andaman & Nicobar',
+  'Pondicherry': 'Puducherry',
+  'Orissa': 'Odisha',
+  'NCT of Delhi': 'Delhi',
+};
+function resolveStateName(apiState: string): string | null {
+  if (STATES.includes(apiState)) return apiState;
+  return STATE_ALIASES[apiState] ?? null;
+}
+
 /** A single, continuously-scrolling page — a vendor fills this in start to
  *  finish and submits once, like a Google Form, not a multi-step wizard. */
 export default function OnboardForm({ cats }: { cats: Cat[] }) {
@@ -46,6 +63,7 @@ export default function OnboardForm({ cats }: { cats: Cat[] }) {
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
   const [pincode, setPincode] = useState('');
+  const [pincodeStatus, setPincodeStatus] = useState<'idle' | 'loading' | 'found' | 'unresolved_state' | 'not_found' | 'error'>('idle');
   const [location, setLocation] = useState('');
   const [primary, setPrimary] = useState<Contact>({ ...blankContact });
   const [secondary, setSecondary] = useState<Contact>({ ...blankContact });
@@ -68,6 +86,32 @@ export default function OnboardForm({ cats }: { cats: Cat[] }) {
   const derivedPan = panFromGstin(gstin);
   const industryCats = cats.filter(c => c.industry === industry);
   const category = industryCats.find(c => c.id === categoryId);
+
+  // Pincode drives city/state instead of the other way round, so the two
+  // can never quietly disagree the way free-typed fields can. Fed by
+  // India Post's own public lookup — no key, no account, and it is the
+  // same registry GSTIN state codes ultimately come from.
+  useEffect(() => {
+    if (!/^[1-9][0-9]{5}$/.test(pincode)) { setPincodeStatus('idle'); return; }
+    let cancelled = false;
+    setPincodeStatus('loading');
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`https://api.postalpincode.in/pincode/${pincode}`);
+        const data = await res.json();
+        if (cancelled) return;
+        const office = data?.[0]?.Status === 'Success' ? data[0].PostOffice?.[0] : null;
+        if (!office) { setPincodeStatus('not_found'); return; }
+        setCity(office.District ?? '');
+        const resolved = resolveStateName(office.State ?? '');
+        if (resolved) { setState(resolved); setPincodeStatus('found'); }
+        else setPincodeStatus('unresolved_state');
+      } catch {
+        if (!cancelled) setPincodeStatus('error');
+      }
+    }, 400);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [pincode]);
 
   const toggleRegion = (code: string, sts: string[]) => {
     if (openRegions.includes(code)) {
@@ -254,6 +298,16 @@ export default function OnboardForm({ cats }: { cats: Cat[] }) {
             <input value={addressLine1} maxLength={255} onChange={e => setAddressLine1(e.target.value)} />
           </div>
           <div>
+            <label className="lab">Pincode <span className="req">*</span></label>
+            <input value={pincode} maxLength={6} inputMode="numeric"
+                   onChange={e => setPincode(e.target.value.replace(/[^0-9]/g, ''))} />
+            {pincodeStatus === 'loading' && <div className="hint">Looking up city and state…</div>}
+            {pincodeStatus === 'found' && <div className="hint">City and state filled in from the pincode — edit either if something looks wrong.</div>}
+            {pincodeStatus === 'not_found' && <div className="err">That pincode was not found. Enter city and state yourself.</div>}
+            {pincodeStatus === 'unresolved_state' && <div className="err">City filled in, but pick your state from the list — it could not be matched automatically.</div>}
+            {pincodeStatus === 'error' && <div className="err">Could not look up that pincode right now. Enter city and state yourself.</div>}
+          </div>
+          <div>
             <label className="lab">City <span className="req">*</span></label>
             <input value={city} maxLength={100} onChange={e => setCity(e.target.value)} />
           </div>
@@ -263,10 +317,6 @@ export default function OnboardForm({ cats }: { cats: Cat[] }) {
               <option value="">Select…</option>
               {STATES.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
-          </div>
-          <div>
-            <label className="lab">Pincode <span className="req">*</span></label>
-            <input value={pincode} maxLength={6} onChange={e => setPincode(e.target.value)} />
           </div>
           <div>
             <label className="lab">Location</label>
