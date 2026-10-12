@@ -10,6 +10,7 @@ import CategoriesForm, { type Cat } from './CategoriesForm';
 import DocumentsTab, { type DocType, type DocRow } from './DocumentsTab';
 import NdaPanel from './NdaPanel';
 import InlineDocUpload from './InlineDocUpload';
+import DeleteVendorPanel from './DeleteVendorPanel';
 
 /** The whole page in a try/catch, so a server error shows its message instead
  *  of the blank digest page Next.js gives in production. */
@@ -343,6 +344,11 @@ async function VendorRecord({
                          siteId={id} readOnly={readOnly} />
         )}
       </div>
+
+      {me.role === 'super_admin' && (
+        <DeleteVendorPanel siteId={id} companyId={site.company_id as string}
+                            siteCode={site.site_code as string} legalName={company.legal_name as string} />
+      )}
     </>
   );
 }
