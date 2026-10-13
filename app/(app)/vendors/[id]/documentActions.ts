@@ -6,6 +6,12 @@ import { extractEntityFromCertificate } from '@/lib/entityFromCertificate';
 
 export type DocState = { error?: string; ok?: string };
 
+// Off for now, pending a cost/rate-limit check on the Gemini API key in
+// use — flip back to true to re-enable. Already runs fully in the
+// background (after()) when on, so it was never on the critical path of
+// an upload either way; this just stops the call from happening at all.
+const GST_ENTITY_EXTRACTION_ENABLED = false;
+
 const MAX = 10 * 1024 * 1024;
 const OK_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
 
@@ -69,7 +75,7 @@ export async function uploadDocument(
   // waiting on. after() runs it once the response has already gone back,
   // so the upload itself always completes in the time Storage + one insert
   // actually take, never blocking on Gemini. See lib/entityFromCertificate.ts.
-  if (docType === 'gst') {
+  if (docType === 'gst' && GST_ENTITY_EXTRACTION_ENABLED) {
     const buffer = Buffer.from(await file.arrayBuffer());
     const mime = file.type || 'application/pdf';
     after(async () => {
