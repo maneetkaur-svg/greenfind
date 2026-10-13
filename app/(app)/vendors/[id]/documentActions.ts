@@ -6,11 +6,9 @@ import { extractEntityFromCertificate } from '@/lib/entityFromCertificate';
 
 export type DocState = { error?: string; ok?: string };
 
-// Off for now, pending a cost/rate-limit check on the Gemini API key in
-// use — flip back to true to re-enable. Already runs fully in the
-// background (after()) when on, so it was never on the critical path of
-// an upload either way; this just stops the call from happening at all.
-const GST_ENTITY_EXTRACTION_ENABLED = false;
+// Runs fully in the background (after()) — never on the critical path of
+// an upload. Flip to false to stop the Gemini call from happening at all.
+const GST_ENTITY_EXTRACTION_ENABLED = true;
 
 const MAX = 10 * 1024 * 1024;
 const OK_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
