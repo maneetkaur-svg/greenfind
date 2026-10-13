@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { createClient, getMe } from '@/lib/supabase/server';
 import { setRole, setActive } from './actions';
 import AddUserForm from './AddUserForm';
+import DeleteUserButton from './DeleteUserButton';
 import { ROLE_LABEL } from '@/lib/constants';
 import SubmitButton from '@/app/SubmitButton';
 
@@ -66,14 +67,17 @@ export default async function UsersPage() {
                 </td>
                 <td>
                   {r.id !== me.id && (
-                    <form action={setActive}>
-                      <input type="hidden" name="id" value={r.id} />
-                      <input type="hidden" name="active" value={r.is_active ? 'false' : 'true'} />
-                      <SubmitButton className="btn btn-o" pendingText="Working…"
-                                    style={{ padding: '6px 12px', fontSize: 13 }}>
-                        {r.is_active ? 'Disable' : 'Enable'}
-                      </SubmitButton>
-                    </form>
+                    <div className="flex gap-2 items-start">
+                      <form action={setActive}>
+                        <input type="hidden" name="id" value={r.id} />
+                        <input type="hidden" name="active" value={r.is_active ? 'false' : 'true'} />
+                        <SubmitButton className="btn btn-o" pendingText="Working…"
+                                      style={{ padding: '6px 12px', fontSize: 13 }}>
+                          {r.is_active ? 'Disable' : 'Enable'}
+                        </SubmitButton>
+                      </form>
+                      <DeleteUserButton id={r.id} name={r.full_name} />
+                    </div>
                   )}
                 </td>
               </tr>
