@@ -1,6 +1,11 @@
 /** Reference data that does not change per install.
  *  Categories and document rules live in the database — see 03_reference_data.sql. */
 
+/** Gates /activity — a specific person's own view, not a role, since it
+ *  was asked for as Maneet Kaur's view specifically rather than shared
+ *  with every super admin. */
+export const ACTIVITY_LOG_EMAIL = 'maneet.kaur@fitsol.green';
+
 export const INDUSTRIES = [
   { code: 'recycling',      label: 'Recycling' },
   { code: 'packaging',      label: 'Packaging' },

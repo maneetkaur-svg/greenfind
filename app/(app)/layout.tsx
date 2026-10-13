@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getMe } from '@/lib/supabase/server';
 import { signOut } from '@/app/login/actions';
-import { ROLE_LABEL } from '@/lib/constants';
+import { ROLE_LABEL, ACTIVITY_LOG_EMAIL } from '@/lib/constants';
 import { DEV_AUTH_BYPASS } from '@/lib/devAuth';
 import DevBanner from './DevBanner';
 import Sidebar from './Sidebar';
@@ -54,7 +54,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </header>
 
       <div className="max-w-[1240px] mx-auto px-5 flex gap-6">
-        <Sidebar isSuperAdmin={me.role === 'super_admin'} />
+        <Sidebar isSuperAdmin={me.role === 'super_admin'}
+                 showActivity={me.email?.toLowerCase() === ACTIVITY_LOG_EMAIL} />
         <main className="flex-1 min-w-0 py-6 pb-20">{children}</main>
       </div>
     </div>

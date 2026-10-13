@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-export default function Sidebar({ isSuperAdmin }: { isSuperAdmin: boolean }) {
+export default function Sidebar({ isSuperAdmin, showActivity }: { isSuperAdmin: boolean; showActivity: boolean }) {
   const pathname = usePathname();
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + '/');
 
@@ -26,6 +26,11 @@ export default function Sidebar({ isSuperAdmin }: { isSuperAdmin: boolean }) {
           {isSuperAdmin && (
             <Link href="/users" className={`nav-tab ${isActive('/users') ? 'active' : ''}`}>
               Users
+            </Link>
+          )}
+          {showActivity && (
+            <Link href="/activity" className={`nav-tab ${isActive('/activity') ? 'active' : ''}`}>
+              Activity
             </Link>
           )}
           <div className="mt-2 pt-2 border-t" style={{ borderColor: 'var(--line)' }}>
