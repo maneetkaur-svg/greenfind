@@ -10,14 +10,14 @@ export default function AddUserForm() {
     <div className="card p-6">
       <h2 className="text-[15px] font-bold mb-1">Add someone</h2>
       <p className="text-[13px] mb-4" style={{ color: 'var(--faint)' }}>
-        Creates the login and the permissions together. They can sign in straight
-        away — there is no confirmation email to wait for.
+        Creates the permissions and sends them an invite email automatically —
+        they set their own password when they click it. Nothing to tell them yourself.
       </p>
 
       {state.error && <div className="note r mb-4">{state.error}</div>}
       {state.ok && <div className="note mb-4">{state.ok}</div>}
 
-      <form action={action} className="grid md:grid-cols-4 gap-4 items-end">
+      <form action={action} className="grid md:grid-cols-3 gap-4 items-end">
         <div>
           <label className="lab" htmlFor="full_name">Name</label>
           <input id="full_name" name="full_name" required />
@@ -27,11 +27,6 @@ export default function AddUserForm() {
           <input id="email" name="email" type="email" required />
         </div>
         <div>
-          <label className="lab" htmlFor="password">Temporary password</label>
-          <input id="password" name="password" type="text" required minLength={8}
-                 placeholder="At least 8 characters" />
-        </div>
-        <div>
           <label className="lab" htmlFor="role">Role</label>
           <select id="role" name="role" defaultValue="operations">
             <option value="operations">Operations</option>
@@ -39,8 +34,8 @@ export default function AddUserForm() {
             <option value="super_admin">Super Admin</option>
           </select>
         </div>
-        <div className="md:col-span-4">
-          <SubmitButton pendingText="Creating…">Create account</SubmitButton>
+        <div className="md:col-span-3">
+          <SubmitButton pendingText="Sending invite…">Send invite</SubmitButton>
         </div>
       </form>
     </div>

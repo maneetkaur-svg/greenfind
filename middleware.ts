@@ -40,7 +40,13 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   const path = request.nextUrl.pathname;
 
-  const open = path === '/login' || path === '/setup' || path.startsWith('/onboard');
+  // /set-password must stay reachable while signed out: an invite link's
+  // token lives in the URL fragment, which browsers never send to the
+  // server, so this first request looks exactly like an anonymous visit
+  // until the client-side Supabase SDK reads the fragment and sets a
+  // session itself.
+  const open = path === '/login' || path === '/setup' || path === '/set-password'
+    || path.startsWith('/onboard');
   if (!user && !open) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';

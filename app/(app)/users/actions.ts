@@ -1,5 +1,6 @@
 'use server';
 import { revalidatePath } from 'next/cache';
+import { headers } from 'next/headers';
 import { getMe } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 
@@ -12,12 +13,10 @@ export async function addUser(_prev: UserState, formData: FormData): Promise<Use
 
   const name = String(formData.get('full_name') ?? '').trim();
   const email = String(formData.get('email') ?? '').trim().toLowerCase();
-  const password = String(formData.get('password') ?? '');
   const role = String(formData.get('role') ?? 'user');
 
   if (!name) return { error: 'Enter their name.' };
   if (!email) return { error: 'Enter their email address.' };
-  if (password.length < 8) return { error: 'Use a password of at least 8 characters.' };
   if (!['super_admin', 'operations', 'user'].includes(role))
     return { error: 'Pick a valid role.' };
 
@@ -25,8 +24,16 @@ export async function addUser(_prev: UserState, formData: FormData): Promise<Use
   try { admin = createAdminClient(); }
   catch { return { error: 'SUPABASE_SERVICE_ROLE_KEY is not set on this deployment.' }; }
 
-  const { data: created, error: authErr } = await admin.auth.admin.createUser({
-    email, password, email_confirm: true,
+  // No admin-chosen password — Supabase sends its own invite email with a
+  // secure, one-time link, and the person sets their own password on
+  // /set-password. Nothing resembling a credential ever travels by email.
+  const h = await headers();
+  const host = h.get('host') ?? 'localhost:3000';
+  const origin = `${host.includes('localhost') ? 'http' : 'https'}://${host}`;
+
+  const { data: created, error: authErr } = await admin.auth.admin.inviteUserByEmail(email, {
+    data: { full_name: name },
+    redirectTo: `${origin}/set-password`,
   });
   if (authErr) return { error: 'Could not create the login: ' + authErr.message };
 
@@ -39,7 +46,7 @@ export async function addUser(_prev: UserState, formData: FormData): Promise<Use
   }
 
   revalidatePath('/users');
-  return { ok: `${name} can now sign in. Send them the email and password — there is no confirmation link to click.` };
+  return { ok: `An invite email is on its way to ${email}. They set their own password when they click it.` };
 }
 
 export async function setRole(formData: FormData) {
