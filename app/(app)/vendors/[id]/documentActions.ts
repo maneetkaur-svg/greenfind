@@ -1,9 +1,14 @@
 'use server';
 import { revalidatePath } from 'next/cache';
+import { after } from 'next/server';
 import { createClient, getMe } from '@/lib/supabase/server';
 import { extractEntityFromCertificate } from '@/lib/entityFromCertificate';
 
 export type DocState = { error?: string; ok?: string };
+
+// Runs fully in the background (after()) — never on the critical path of
+// an upload. Flip to false to stop the Gemini call from happening at all.
+const GST_ENTITY_EXTRACTION_ENABLED = true;
 
 const MAX = 10 * 1024 * 1024;
 const OK_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
@@ -62,21 +67,33 @@ export async function uploadDocument(
   }
 
   // Best-effort: a GST certificate just arrived, so this is the one moment a
-  // fresh entity-type reading is actually possible. Never blocks or fails
-  // the upload itself — see lib/entityFromCertificate.ts.
-  if (docType === 'gst') {
-    try {
-      const { data: site } = await supabase.from('vendor_site').select('company_id').eq('id', siteId).single();
-      const { data: co } = site
-        ? await supabase.from('company').select('entity').eq('id', site.company_id).single()
-        : { data: null };
-      if (site && !co?.entity) {
-        const buffer = Buffer.from(await file.arrayBuffer());
-        await extractEntityFromCertificate(supabase, site.company_id, buffer, file.type || 'application/pdf');
+  // fresh entity-type reading is actually possible. A Gemini call can take
+  // up to ~150s worst case (60s timeout + 30s backoff + a 60s retry) — that
+  // used to sit in the critical path the user's "Uploading…" spinner was
+  // waiting on. after() runs it once the response has already gone back,
+  // so the upload itself always completes in the time Storage + one insert
+  // actually take, never blocking on Gemini. See lib/entityFromCertificate.ts.
+  if (docType === 'gst' && GST_ENTITY_EXTRACTION_ENABLED) {
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const mime = file.type || 'application/pdf';
+    after(async () => {
+      try {
+        const { data: site } = await supabase.from('vendor_site').select('company_id').eq('id', siteId).single();
+        const { data: co } = site
+          ? await supabase.from('company').select('entity').eq('id', site.company_id).single()
+          : { data: null };
+        if (site && !co?.entity) {
+          const result = await extractEntityFromCertificate(supabase, site.company_id, buffer, mime);
+          // The page that triggered the upload has already rendered by now
+          // (it's past response time) — revalidate again so the entity
+          // type shows up next time this vendor is opened, not just after
+          // some unrelated future edit happens to revalidate it.
+          if (result.ok) revalidatePath(`/vendors/${siteId}`);
+        }
+      } catch {
+        /* ignored — see above */
       }
-    } catch {
-      /* ignored — see above */
-    }
+    });
   }
 
   revalidatePath(`/vendors/${siteId}`);
