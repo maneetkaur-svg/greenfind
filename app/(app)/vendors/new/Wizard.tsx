@@ -120,7 +120,7 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
      Banking, CTO/EPR certificates on their own steps. The Documents step
      itself only shows these as a status summary, plus anything left over
      (Company profile) and the free-form "add more" flow. */
-  const CONTEXTUAL_DOC_CODES = ['gst', 'pan', 'udyam', 'cheque', 'nda', 'cto', 'epr'];
+  const CONTEXTUAL_DOC_CODES = ['gst', 'pan', 'udyam', 'cheque', 'nda', 'cto', 'epr', 'profile'];
 
   const renderDocCard = (code: string) => {
     const d = docs.find(x => x.code === code);
@@ -205,10 +205,21 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
     if (!RX.pincode.test(String(site.pincode ?? '')))
       out.push({ step: at('site'), text: 'Pincode must be six digits and cannot start with zero.' });
 
+    if (site.geo_outside_india !== true && geo.length === 0)
+      out.push({ step: at('geography'), text: 'Pick at least one serviceable state, or mark this site as serving locations outside India.' });
+
     if (!contacts[0].name.trim())
       out.push({ step: at('contacts'), text: 'The primary contact needs a name.' });
+    if (!contacts[0].mobile.trim())
+      out.push({ step: at('contacts'), text: 'The primary contact needs a mobile number.' });
+    else if (!RX.mobile.test(contacts[0].mobile))
+      out.push({ step: at('contacts'), text: 'Primary contact: mobile must be ten digits starting 6 to 9.' });
     if (!contacts[1].name.trim())
       out.push({ step: at('contacts'), text: 'The secondary contact needs a name.' });
+    if (!contacts[1].mobile.trim())
+      out.push({ step: at('contacts'), text: 'The secondary contact needs a mobile number.' });
+    else if (!RX.mobile.test(contacts[1].mobile))
+      out.push({ step: at('contacts'), text: 'Secondary contact: mobile must be ten digits starting 6 to 9.' });
 
     for (const id of pickedCats) {
       const c = industryCats.find(x => x.id === id);
@@ -532,6 +543,7 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
                     sub-categories, pick at least one.
                   </p>
                   {categoryPicker}
+                  <div className="mt-5">{renderDocCard('profile')}</div>
                 </div>
               )}
 
@@ -658,6 +670,7 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
                         <label className="lab" htmlFor={`c${i}_${k}`}>
                           {k === 'name' ? 'Name' : k === 'designation' ? 'Designation'
                            : k === 'mobile' ? 'Mobile' : 'Email'}
+                          {i < 2 && (k === 'name' || k === 'mobile') && <span className="req"> *</span>}
                         </label>
                         <input id={`c${i}_${k}`} value={contacts[i][k]}
                                maxLength={k === 'mobile' ? 10 : k === 'email' ? 255 : 100}
@@ -734,7 +747,7 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
                   <div className="grid gap-2">
                     {docs.filter(d => CONTEXTUAL_DOC_CODES.includes(d.code)).map(d => {
                       const ready = !!files[d.code];
-                      const stepId = d.code === 'gst' || d.code === 'pan' || d.code === 'udyam' ? 'identity'
+                      const stepId = d.code === 'gst' || d.code === 'pan' || d.code === 'udyam' || d.code === 'profile' ? 'identity'
                         : d.code === 'cheque' ? 'banking' : d.code === 'nda' ? 'agreements' : d.code;
                       return (
                         <div key={d.code} className="flex items-center justify-between gap-3">
