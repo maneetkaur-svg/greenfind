@@ -346,8 +346,7 @@ async function VendorRecord({
       </div>
 
       {me.role === 'super_admin' && (
-        <DeleteVendorPanel siteId={id} companyId={site.company_id as string}
-                            siteCode={site.site_code as string} legalName={company.legal_name as string} />
+        <DeleteVendorPanel siteId={id} siteCode={site.site_code as string} legalName={company.legal_name as string} />
       )}
     </>
   );
