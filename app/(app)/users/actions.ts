@@ -13,50 +13,70 @@ export async function addUser(_prev: UserState, formData: FormData): Promise<Use
 
   const name = String(formData.get('full_name') ?? '').trim();
   const email = String(formData.get('email') ?? '').trim().toLowerCase();
+  const password = String(formData.get('password') ?? '');
   const role = String(formData.get('role') ?? 'user');
+  // 'invite' (default): Supabase emails a secure link, no admin-chosen
+  // password. 'direct': the super admin sets the password themselves and
+  // tells the person outside this app — exists specifically so creating an
+  // account never depends on email sending working at all (Supabase's
+  // shared sender is rate-limited to a handful an hour unless custom SMTP
+  // is configured, which this does not require).
+  const mode = String(formData.get('mode') ?? 'invite');
 
   if (!name) return { error: 'Enter their name.' };
   if (!email) return { error: 'Enter their email address.' };
   if (!['super_admin', 'operations', 'user'].includes(role))
     return { error: 'Pick a valid role.' };
+  if (mode === 'direct' && password.length < 8)
+    return { error: 'Use a password of at least 8 characters.' };
 
   let admin;
   try { admin = createAdminClient(); }
   catch { return { error: 'SUPABASE_SERVICE_ROLE_KEY is not set on this deployment.' }; }
 
-  // No admin-chosen password — Supabase sends its own invite email with a
-  // secure, one-time link, and the person sets their own password on
-  // /set-password. Nothing resembling a credential ever travels by email.
-  //
-  // The link's domain must be the one the *recipient* can actually reach,
-  // never whichever machine happened to send the invite — so this prefers
-  // NEXT_PUBLIC_SITE_URL (set in Vercel to the real production domain) and
-  // only falls back to the request's own host for local testing, where
-  // there is no real deployed URL to fall back to.
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/$/, '');
-  let origin = siteUrl;
-  if (!origin) {
-    const h = await headers();
-    const host = h.get('host') ?? 'localhost:3000';
-    origin = `${host.includes('localhost') ? 'http' : 'https'}://${host}`;
+  let userId: string;
+  let ok: string;
+
+  if (mode === 'direct') {
+    const { data: created, error: authErr } = await admin.auth.admin.createUser({
+      email, password, email_confirm: true, user_metadata: { full_name: name },
+    });
+    if (authErr) return { error: 'Could not create the login: ' + authErr.message };
+    userId = created.user.id;
+    ok = `${name} can sign in now with the password you set. Tell them directly — no email was sent.`;
+  } else {
+    // The link's domain must be the one the *recipient* can actually reach,
+    // never whichever machine happened to send the invite — so this
+    // prefers NEXT_PUBLIC_SITE_URL (set in Vercel to the real production
+    // domain) and only falls back to the request's own host for local
+    // testing, where there is no real deployed URL to fall back to.
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/$/, '');
+    let origin = siteUrl;
+    if (!origin) {
+      const h = await headers();
+      const host = h.get('host') ?? 'localhost:3000';
+      origin = `${host.includes('localhost') ? 'http' : 'https'}://${host}`;
+    }
+
+    const { data: created, error: authErr } = await admin.auth.admin.inviteUserByEmail(email, {
+      data: { full_name: name },
+      redirectTo: `${origin}/set-password`,
+    });
+    if (authErr) return { error: 'Could not create the login: ' + authErr.message };
+    userId = created.user.id;
+    ok = `An invite email is on its way to ${email}. They set their own password when they click it.`;
   }
 
-  const { data: created, error: authErr } = await admin.auth.admin.inviteUserByEmail(email, {
-    data: { full_name: name },
-    redirectTo: `${origin}/set-password`,
-  });
-  if (authErr) return { error: 'Could not create the login: ' + authErr.message };
-
   const { error: profErr } = await admin.from('profile').insert({
-    id: created.user.id, full_name: name, email, role, is_active: true,
+    id: userId, full_name: name, email, role, is_active: true,
   });
   if (profErr) {
-    await admin.auth.admin.deleteUser(created.user.id);
+    await admin.auth.admin.deleteUser(userId);
     return { error: 'Login created but the profile row failed, so it was rolled back: ' + profErr.message };
   }
 
   revalidatePath('/users');
-  return { ok: `An invite email is on its way to ${email}. They set their own password when they click it.` };
+  return { ok };
 }
 
 export async function setRole(formData: FormData) {
