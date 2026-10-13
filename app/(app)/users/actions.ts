@@ -27,9 +27,19 @@ export async function addUser(_prev: UserState, formData: FormData): Promise<Use
   // No admin-chosen password — Supabase sends its own invite email with a
   // secure, one-time link, and the person sets their own password on
   // /set-password. Nothing resembling a credential ever travels by email.
-  const h = await headers();
-  const host = h.get('host') ?? 'localhost:3000';
-  const origin = `${host.includes('localhost') ? 'http' : 'https'}://${host}`;
+  //
+  // The link's domain must be the one the *recipient* can actually reach,
+  // never whichever machine happened to send the invite — so this prefers
+  // NEXT_PUBLIC_SITE_URL (set in Vercel to the real production domain) and
+  // only falls back to the request's own host for local testing, where
+  // there is no real deployed URL to fall back to.
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/$/, '');
+  let origin = siteUrl;
+  if (!origin) {
+    const h = await headers();
+    const host = h.get('host') ?? 'localhost:3000';
+    origin = `${host.includes('localhost') ? 'http' : 'https'}://${host}`;
+  }
 
   const { data: created, error: authErr } = await admin.auth.admin.inviteUserByEmail(email, {
     data: { full_name: name },
@@ -72,4 +82,37 @@ export async function setActive(formData: FormData) {
   const admin = createAdminClient();
   await admin.from('profile').update({ is_active: active }).eq('id', id);
   revalidatePath('/users');
+}
+
+/** A real, permanent delete — not the same as Disable. Most people who have
+ *  actually done anything (uploaded a document, edited a record, submitted
+ *  a change request) cannot be deleted at all: every one of those tables
+ *  references profile(id) with no ON DELETE CASCADE or SET NULL, by design
+ *  ("anything they verified or changed keeps their name against it" — see
+ *  the note at the bottom of this page), so Postgres itself refuses the
+ *  delete rather than silently erasing that attribution. Disable instead
+ *  for anyone this fails for. */
+export async function deleteUser(_prev: UserState, formData: FormData): Promise<UserState> {
+  const me = await getMe();
+  if (!me || me.role !== 'super_admin') return { error: 'Only a Super Admin can remove people.' };
+  const id = String(formData.get('id') ?? '');
+  if (!id) return { error: 'Something is missing from the form.' };
+  if (id === me.id) return { error: 'You cannot delete your own account.' };
+
+  const admin = createAdminClient();
+  const { error } = await admin.auth.admin.deleteUser(id);
+  if (error) {
+    // Supabase's auth server usually reports this as a generic "Database
+    // error deleting user" (sometimes with the Postgres detail, sometimes
+    // not), rather than the literal Postgres foreign-key message — matching
+    // broadly on both so the friendly version reliably shows either way.
+    const msg = error.message.toLowerCase();
+    if (msg.includes('foreign key') || msg.includes('database error deleting user') || error.code === '23503') {
+      return { error: 'This person has existing activity on record (documents, edits, requests) and cannot be deleted. Disable their account instead — it keeps their name against what they did, but they can no longer sign in.' };
+    }
+    return { error: 'Could not delete this account: ' + error.message };
+  }
+
+  revalidatePath('/users');
+  return { ok: 'Account permanently removed.' };
 }
