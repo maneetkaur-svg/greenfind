@@ -196,13 +196,11 @@ export async function saveCategories(
 export type DeleteState = { error?: string };
 
 /** Soft-deletes a vendor site (and its company too, if this was its only
- *  site) — super_admin only, and only after a reason is on record. The
- *  reason itself lives in change_request (type='delete'), not on
- *  vendor_site, so it survives independently of the soft-deleted row.
- *  change_request's own RLS only allows inserting with status='pending'
- *  (cr_insert); it is then moved to 'approved' in a second update, which
- *  only is_admin() may do (cr_decide) and which stamps decided_by/
- *  decided_at automatically (stamp_decider trigger). */
+ *  site) — super_admin only, and only after a reason is on record. Done as
+ *  one atomic security-definer RPC (sql/26_delete_vendor_rpc.sql), which
+ *  does the change_request bookkeeping and the actual soft-delete inside a
+ *  single transaction with its own is_admin() check, rather than four
+ *  separate client calls against individually RLS-gated tables. */
 export async function deleteVendor(
   _prev: DeleteState, formData: FormData
 ): Promise<DeleteState> {
@@ -211,38 +209,17 @@ export async function deleteVendor(
   if (me.role !== 'super_admin') return { error: 'Only a super admin can delete a vendor.' };
 
   const siteId = String(formData.get('__site_id') ?? '');
-  const companyId = String(formData.get('__company_id') ?? '');
   const siteCode = String(formData.get('__site_code') ?? '').trim();
   const confirmCode = String(formData.get('__confirm_code') ?? '').trim();
   const reason = String(formData.get('reason') ?? '').trim();
 
-  if (!siteId || !companyId) return { error: 'Something is missing from the form.' };
+  if (!siteId) return { error: 'Something is missing from the form.' };
   if (confirmCode !== siteCode) return { error: `Type "${siteCode}" exactly to confirm.` };
   if (reason.length < 10) return { error: 'Give a real reason for deleting this vendor (at least 10 characters).' };
 
   const supabase = await createClient();
-
-  const { data: cr, error: crErr } = await supabase.from('change_request').insert({
-    site_id: siteId, company_id: companyId, type: 'delete', status: 'pending',
-    reason, requested_by: me.id,
-  }).select('id').single();
-  if (crErr) return { error: crErr.message };
-
-  const { error: decideErr } = await supabase.from('change_request')
-    .update({ status: 'approved' }).eq('id', cr.id);
-  if (decideErr) return { error: decideErr.message };
-
-  const { error: siteErr } = await supabase.from('vendor_site')
-    .update({ deleted_at: new Date().toISOString(), updated_by: me.id }).eq('id', siteId);
-  if (siteErr) return { error: siteErr.message };
-
-  // If that was the company's only live site, the company goes too — same
-  // rule scripts/import/cleanup-vendors.ts already uses.
-  const { count } = await supabase.from('vendor_site')
-    .select('id', { count: 'exact', head: true }).eq('company_id', companyId).is('deleted_at', null);
-  if (!count) {
-    await supabase.from('company').update({ deleted_at: new Date().toISOString(), updated_by: me.id }).eq('id', companyId);
-  }
+  const { error } = await supabase.rpc('delete_vendor_site', { p_site_id: siteId, p_reason: reason });
+  if (error) return { error: error.message };
 
   revalidatePath('/vendors');
   redirect('/vendors');

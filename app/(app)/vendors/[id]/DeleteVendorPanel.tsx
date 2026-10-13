@@ -9,8 +9,8 @@ import SubmitButton from '@/app/SubmitButton';
  *  out, so an admin has to actually stop and look at what they're about to
  *  remove rather than click through a confirm() dialog on reflex. */
 export default function DeleteVendorPanel({
-  siteId, companyId, siteCode, legalName,
-}: { siteId: string; companyId: string; siteCode: string; legalName: string }) {
+  siteId, siteCode, legalName,
+}: { siteId: string; siteCode: string; legalName: string }) {
   const [state, action] = useActionState<DeleteState, FormData>(deleteVendor, {});
   const [open, setOpen] = useState(false);
   const [confirmText, setConfirmText] = useState('');
@@ -37,7 +37,6 @@ export default function DeleteVendorPanel({
   return (
     <form action={action} className="card p-6 mt-5" style={{ borderColor: 'var(--err)' }}>
       <input type="hidden" name="__site_id" value={siteId} />
-      <input type="hidden" name="__company_id" value={companyId} />
       <input type="hidden" name="__site_code" value={siteCode} />
 
       <div className="text-[11px] font-bold uppercase tracking-[.07em] mb-2" style={{ color: 'var(--err)' }}>
