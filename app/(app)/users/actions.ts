@@ -27,9 +27,19 @@ export async function addUser(_prev: UserState, formData: FormData): Promise<Use
   // No admin-chosen password — Supabase sends its own invite email with a
   // secure, one-time link, and the person sets their own password on
   // /set-password. Nothing resembling a credential ever travels by email.
-  const h = await headers();
-  const host = h.get('host') ?? 'localhost:3000';
-  const origin = `${host.includes('localhost') ? 'http' : 'https'}://${host}`;
+  //
+  // The link's domain must be the one the *recipient* can actually reach,
+  // never whichever machine happened to send the invite — so this prefers
+  // NEXT_PUBLIC_SITE_URL (set in Vercel to the real production domain) and
+  // only falls back to the request's own host for local testing, where
+  // there is no real deployed URL to fall back to.
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/$/, '');
+  let origin = siteUrl;
+  if (!origin) {
+    const h = await headers();
+    const host = h.get('host') ?? 'localhost:3000';
+    origin = `${host.includes('localhost') ? 'http' : 'https'}://${host}`;
+  }
 
   const { data: created, error: authErr } = await admin.auth.admin.inviteUserByEmail(email, {
     data: { full_name: name },
