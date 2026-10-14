@@ -14,9 +14,9 @@ export default function Sidebar({ isSuperAdmin, showActivity }: { isSuperAdmin: 
           <Link href="/vendors" className={`nav-tab ${isActive('/vendors') ? 'active' : ''}`}>
             Vendors
           </Link>
-          <span className="nav-tab disabled" title="Coming soon">
+          <Link href="/rfqs" className={`nav-tab ${isActive('/rfqs') ? 'active' : ''}`}>
             RFQs
-          </span>
+          </Link>
           <span className="nav-tab disabled" title="Coming soon">
             Vendor Evaluation
           </span>
