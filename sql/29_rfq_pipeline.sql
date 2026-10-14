@@ -206,11 +206,12 @@ language sql stable security invoker as $$
   ),
   overlap as (
     select s.id as site_id,
-           count(*) filter (where sg.state = any ((select geography from req))) as geo_overlap
+           count(*) filter (where sg.state::text = any (req.geography)) as geo_overlap
     from public.vendor_site s
+    cross join req
     left join public.site_geography sg on sg.site_id = s.id
     where s.deleted_at is null and s.status = 'active'
-      and s.industry = (select industry from req)
+      and s.industry = req.industry
     group by s.id
   )
   select s.id, s.company_id, s.site_code, c.legal_name, s.state, s.city,

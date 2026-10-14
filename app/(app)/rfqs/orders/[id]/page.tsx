@@ -33,8 +33,8 @@ export default async function RfqWorkspacePage({ params }: { params: Promise<{ i
   type ReqRef = { id: string; title: string; industry: string; geography: string[]; description: string | null };
   const requirement = one(rfq.requirement as unknown as ReqRef | ReqRef[] | null);
 
-  const { data: candidateRows } = await supabase.from('rfq_vendor')
-    .select('site_id, match_rank, selected, sent_at, site:site_id(site_code, state, city, company:company_id(legal_name))')
+  const { data: candidateRows, error: candidatesErr } = await supabase.from('rfq_vendor')
+    .select('site_id, match_rank, selected, sent_at, site:site_id(site_code, state, city, company:company(legal_name))')
     .eq('rfq_id', id).order('match_rank');
 
   const siteIds = (candidateRows ?? []).map(c => c.site_id);
@@ -54,18 +54,18 @@ export default async function RfqWorkspacePage({ params }: { params: Promise<{ i
   });
   const vendors: Vendor[] = candidates.filter(c => c.selected).map(c => ({ site_id: c.site_id, site_code: c.site_code, legal_name: c.legal_name }));
 
-  const { data: quotations } = STAGE_AFTER_SENT.has(rfq.status)
+  const { data: quotations, error: quotationsErr } = STAGE_AFTER_SENT.has(rfq.status)
     ? await supabase.from('rfq_quotation').select('*').eq('rfq_id', id).order('price')
-    : { data: [] as Quotation[] };
+    : { data: [] as Quotation[], error: null };
   const selectedQuote = (quotations ?? []).find(q => q.is_selected) ?? null;
 
-  const { data: po } = STAGE_AFTER_QUOTE.has(rfq.status)
+  const { data: po, error: poErr } = STAGE_AFTER_QUOTE.has(rfq.status)
     ? await supabase.from('purchase_order').select('*').eq('rfq_id', id).order('created_at', { ascending: false }).limit(1).maybeSingle()
-    : { data: null as Po | null };
+    : { data: null as Po | null, error: null };
 
-  const { data: order } = STAGE_AFTER_PO_SIGNED.has(rfq.status) && po
+  const { data: order, error: orderErr } = STAGE_AFTER_PO_SIGNED.has(rfq.status) && po
     ? await supabase.from('vendor_order').select('*').eq('rfq_id', id).maybeSingle()
-    : { data: null as OrderRow | null };
+    : { data: null as OrderRow | null, error: null };
 
   const { data: events } = order
     ? await supabase.from('order_status_event').select('status, note, at').eq('order_id', order.id).order('at')
@@ -74,6 +74,11 @@ export default async function RfqWorkspacePage({ params }: { params: Promise<{ i
   const { data: feedback } = order && ['delivered', 'completed'].includes(order.status)
     ? await supabase.from('rfq_feedback').select('from_party, rating, comments').eq('order_id', order.id)
     : { data: [] as FeedbackRow[] };
+
+  const queryErrors = ([
+    ['vendor candidates', candidatesErr], ['quotations', quotationsErr],
+    ['purchase order', poErr], ['order', orderErr],
+  ] as [string, { message: string } | null][]).filter(([, e]) => e);
 
   const Section = ({ n, title, blurb, children }: { n: string; title: string; blurb?: string; children: React.ReactNode }) => (
     <div className="card mb-5">
@@ -98,6 +103,15 @@ export default async function RfqWorkspacePage({ params }: { params: Promise<{ i
         </div>
         <span className="chip c-a">{String(rfq.status).toUpperCase().replace(/_/g, ' ')}</span>
       </div>
+
+      {queryErrors.length > 0 && (
+        <div className="note r mb-5">
+          <b>Some parts of this page could not be loaded.</b>
+          <ul className="mt-2 ml-4 list-disc text-[12.5px]">
+            {queryErrors.map(([name, e]) => <li key={name}>{name}: {e!.message}</li>)}
+          </ul>
+        </div>
+      )}
 
       <Section n="1" title="Vendor matching &amp; send" blurb="Top matches by industry + geography">
         <VendorMatching rfqId={id} requirementId={requirement?.id ?? ''} candidates={candidates}
