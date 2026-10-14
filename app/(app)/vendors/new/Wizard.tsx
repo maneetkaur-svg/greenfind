@@ -96,13 +96,13 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
     const list = [
       { id: 'identity', label: 'KYB' },
       { id: 'site', label: 'Address' },
-      { id: 'geography', label: 'Geography' },
       { id: 'contacts', label: 'Contacts' },
+      { id: 'geography', label: 'Serviceable Geography' },
     ];
     if (industry === 'transportation') list.push({ id: 'fleet', label: 'Fleet' });
-    else if (industry) list.push({ id: 'operations', label: 'Operations' });
-    list.push({ id: 'commercial', label: 'Commercial' });
-    list.push({ id: 'banking', label: 'Banking' });
+    else if (industry) list.push({ id: 'operations', label: 'Operational Capacity' });
+    list.push({ id: 'commercial', label: 'Commercials' });
+    list.push({ id: 'banking', label: 'Payments and Banking' });
     list.push({ id: 'agreements', label: 'Agreements' });
     if (industry === 'recycling') {
       list.push({ id: 'cto', label: 'Consent to Operate' });
