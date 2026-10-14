@@ -116,6 +116,12 @@ export default async function VendorsPage({
   if (sort) clearParams.set('sort', sort);
   const clearHref = clearParams.toString() ? `/vendors?${clearParams.toString()}` : '/vendors';
 
+  // Export respects whatever filter is currently applied — same q/industry/state.
+  const exportParams = new URLSearchParams();
+  if (q) exportParams.set('q', q);
+  if (industry) exportParams.set('industry', industry);
+  if (state) exportParams.set('state', state);
+
   // Service category — fetched only for the 20 rows actually shown, not the
   // whole filtered set, since nothing else on this page needs it.
   const pageIds = pageRows.map(r => r.id);
@@ -140,12 +146,15 @@ export default async function VendorsPage({
 
       <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
         <SearchForm q={q} industries={industries} state={state} sort={sort} />
-        {me?.role !== 'user' && (
-          <div className="flex gap-2">
-            {me?.role === 'super_admin' && <Link href="/vendors/import" className="btn btn-o">Import</Link>}
-            <Link href="/vendors/new" className="btn btn-p">+ Add vendor</Link>
-          </div>
-        )}
+        <div className="flex gap-2">
+          <a href={`/vendors/export?${exportParams.toString()}`} className="btn btn-o">⬇ Export</a>
+          {me?.role !== 'user' && (
+            <>
+              {me?.role === 'super_admin' && <Link href="/vendors/import" className="btn btn-o">Import</Link>}
+              <Link href="/vendors/new" className="btn btn-p">+ Add vendor</Link>
+            </>
+          )}
+        </div>
       </div>
 
       {error && (
