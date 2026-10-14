@@ -58,7 +58,7 @@ export default function SearchForm({
         </div>
       </details>
 
-      <select name="state" defaultValue={state ?? ''} className="w-[140px]">
+      <select name="state" defaultValue={state ?? ''} className="shrink-0" style={{ width: 140 }}>
         <option value="">All states</option>
         {STATES.map(s => <option key={s} value={s}>{s}</option>)}
       </select>
