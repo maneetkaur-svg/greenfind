@@ -20,7 +20,7 @@ export default function SearchForm({
       : `${industries.length} industries`;
 
   return (
-    <form className="flex items-center gap-2 flex-wrap"
+    <form className="flex items-center gap-2 flex-nowrap shrink-0"
           onSubmit={e => {
             e.preventDefault();
             const fd = new FormData(e.currentTarget);
