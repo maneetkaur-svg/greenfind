@@ -58,7 +58,16 @@ export default function FieldGrid({
                      maxLength={f.type === 'number' || f.type === 'currency' ? undefined : f.max}
                      placeholder={f.placeholder}
                      value={String(v ?? '')}
-                     onChange={e => onChange(f.key, e.target.value)} />
+                     onChange={e => {
+                       let val = e.target.value;
+                       // A native `max` only flags the field invalid — it never stops
+                       // someone typing a bigger number — so clamp it here too.
+                       if ((f.type === 'number' || f.type === 'currency') && f.max !== undefined && val !== '') {
+                         const n = Number(val);
+                         if (!Number.isNaN(n) && n > f.max) val = String(f.max);
+                       }
+                       onChange(f.key, val);
+                     }} />
             )}
 
             {f.hint && <div className="hint">{f.hint}</div>}
