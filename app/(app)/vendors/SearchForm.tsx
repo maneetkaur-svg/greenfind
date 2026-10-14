@@ -20,7 +20,7 @@ export default function SearchForm({
       : `${industries.length} industries`;
 
   return (
-    <form className="flex flex-col gap-2 w-full"
+    <form className="flex items-center gap-2 flex-wrap w-full"
           onSubmit={e => {
             e.preventDefault();
             const fd = new FormData(e.currentTarget);
@@ -35,40 +35,37 @@ export default function SearchForm({
             window.dispatchEvent(new Event('app:navigating'));
             router.push(`/vendors?${params.toString()}`);
           }}>
-      <div className="flex items-center gap-2 flex-wrap">
-        <div className="relative w-[220px]">
-          <span className="absolute pointer-events-none" style={{ left: 11, top: '50%', transform: 'translateY(-50%)', color: 'var(--faint)' }}>
-            🔍
-          </span>
-          <input name="q" defaultValue={q ?? ''} placeholder="Search vendors…" style={{ paddingLeft: 32 }} />
-        </div>
-        {actions && <div className="flex gap-2" style={{ marginLeft: 'auto' }}>{actions}</div>}
+      <div className="relative w-[220px]">
+        <span className="absolute pointer-events-none" style={{ left: 11, top: '50%', transform: 'translateY(-50%)', color: 'var(--faint)' }}>
+          🔍
+        </span>
+        <input name="q" defaultValue={q ?? ''} placeholder="Search vendors…" style={{ paddingLeft: 32 }} />
       </div>
 
-      <div className="flex items-center gap-2 flex-wrap">
-        <details className="relative">
-          <summary className="btn btn-o" style={{ listStyle: 'none', cursor: 'pointer' }}>{label} ▾</summary>
-          <div className="absolute z-10 mt-2 card p-3" style={{ minWidth: 190 }}>
-            {INDUSTRIES.map(i => (
-              <label key={i.code} className="flex items-center gap-2 py-1 text-[13px]" style={{ cursor: 'pointer' }}>
-                <input type="checkbox" name="industry" value={i.code} defaultChecked={industries.includes(i.code)} />
-                {i.label}
-              </label>
-            ))}
-            <label className="flex items-center gap-2 py-1 text-[13px]" style={{ cursor: 'pointer' }}>
-              <input type="checkbox" name="industry" value="unclassified" defaultChecked={industries.includes('unclassified')} />
-              Others
+      <details className="relative">
+        <summary className="btn btn-o" style={{ listStyle: 'none', cursor: 'pointer' }}>{label} ▾</summary>
+        <div className="absolute z-10 mt-2 card p-3" style={{ minWidth: 190 }}>
+          {INDUSTRIES.map(i => (
+            <label key={i.code} className="flex items-center gap-2 py-1 text-[13px]" style={{ cursor: 'pointer' }}>
+              <input type="checkbox" name="industry" value={i.code} defaultChecked={industries.includes(i.code)} />
+              {i.label}
             </label>
-          </div>
-        </details>
+          ))}
+          <label className="flex items-center gap-2 py-1 text-[13px]" style={{ cursor: 'pointer' }}>
+            <input type="checkbox" name="industry" value="unclassified" defaultChecked={industries.includes('unclassified')} />
+            Others
+          </label>
+        </div>
+      </details>
 
-        <select name="state" defaultValue={state ?? ''} className="w-[140px]">
-          <option value="">All states</option>
-          {STATES.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
+      <select name="state" defaultValue={state ?? ''} className="w-[140px]">
+        <option value="">All states</option>
+        {STATES.map(s => <option key={s} value={s}>{s}</option>)}
+      </select>
 
-        <button className="btn btn-o">Search</button>
-      </div>
+      <button className="btn btn-o">Search</button>
+
+      {actions && <div className="flex gap-2" style={{ marginLeft: 'auto' }}>{actions}</div>}
     </form>
   );
 }
