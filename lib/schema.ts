@@ -43,7 +43,7 @@ const CAP_UNITS: [string, string][] = [
 export const SECTIONS: Section[] = [
   {
     id: 'identity',
-    label: 'Identity',
+    label: 'KYB',
     table: 'company',
     blurb: 'Statutory identity. Shared by every site this company has.',
     fields: [
