@@ -144,9 +144,9 @@ export default async function VendorsPage({
         <DashboardCard rows={dash as DashRow[]} selected={industries} q={q} state={state} sort={sort} />
       )}
 
-      <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+      <div className="flex items-center gap-3 flex-nowrap mb-4" style={{ overflowX: 'auto' }}>
         <SearchForm q={q} industries={industries} state={state} sort={sort} />
-        <div className="flex gap-2">
+        <div className="flex gap-2 shrink-0" style={{ marginLeft: 'auto' }}>
           <a href={`/vendors/export?${exportParams.toString()}`} className="btn btn-o">⬇ Export</a>
           {me?.role !== 'user' && (
             <>
