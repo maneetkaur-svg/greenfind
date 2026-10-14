@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { createClient, getMe } from '@/lib/supabase/server';
 import { INDUSTRIES } from '@/lib/constants';
+import IndustryFilter from './IndustryFilter';
 
 const SOURCE_LABEL: Record<string, string> = {
   import: 'Bulk / legacy import', manual: 'Manual (staff Add Vendor)', public_form: 'Public sign-up form',
@@ -25,15 +26,29 @@ const pct = (n: number, total: number) => total ? Math.round((n / total) * 100) 
  *  export. Two tiers below the headline figures: gaps the portal already
  *  blocks on, which should be close to zero, and gaps the portal only asks
  *  about without enforcing, which is why these counts are not zero. */
-export default async function AnalyticsPage() {
+export default async function AnalyticsPage({
+  searchParams,
+}: { searchParams: Promise<{ industry?: string }> }) {
   const me = await getMe();
   if (!me) redirect('/login');
   if (me.role !== 'super_admin') redirect('/vendors');
   const supabase = await createClient();
 
-  const { data: sitesRaw, error: sitesErr } = await supabase
+  const { industry: industryParam } = await searchParams;
+  const industries = (industryParam ?? '').split(',').filter(Boolean);
+  const realIndustries = industries.filter(i => i !== 'unclassified');
+  const wantsUnclassified = industries.includes('unclassified');
+
+  let sitesQuery = supabase
     .from('site_summary')
     .select('id, company_id, industry, status, source, docs_attached, docs_required, is_msme, msme_category');
+  if (industries.length) {
+    if (wantsUnclassified && realIndustries.length)
+      sitesQuery = sitesQuery.or(`industry.is.null,industry.in.(${realIndustries.join(',')})`);
+    else if (wantsUnclassified) sitesQuery = sitesQuery.is('industry', null);
+    else sitesQuery = sitesQuery.in('industry', realIndustries);
+  }
+  const { data: sitesRaw, error: sitesErr } = await sitesQuery;
   const sites = (sitesRaw ?? []) as Site[];
   const siteIds = sites.map(s => s.id);
   const companyIds = [...new Set(sites.map(s => s.company_id))];
@@ -143,9 +158,18 @@ export default async function AnalyticsPage() {
   return (
     <>
       <h1 className="text-[26px] font-bold mt-2 mb-1">Analytics</h1>
-      <p className="text-[13.5px] mb-6" style={{ color: 'var(--faint)' }}>
+      <p className="text-[13.5px] mb-4" style={{ color: 'var(--faint)' }}>
         Vendor onboarding and data-completeness, computed fresh from the database on every load.
       </p>
+
+      <div className="flex items-center gap-3 mb-6">
+        <IndustryFilter selected={industries} />
+        {industries.length > 0 && (
+          <span className="text-[12.5px]" style={{ color: 'var(--faint)' }}>
+            Showing {industries.map(i => i === 'unclassified' ? 'Others' : (INDUSTRY_LABEL[i] ?? i)).join(', ')} only
+          </span>
+        )}
+      </div>
 
       {sitesErr && <div className="note r mb-5"><b>Could not read vendor data.</b> {sitesErr.message}</div>}
 
