@@ -14,15 +14,21 @@ export default function Sidebar({ isSuperAdmin, showActivity }: { isSuperAdmin: 
           <Link href="/vendors" className={`nav-tab ${isActive('/vendors') ? 'active' : ''}`}>
             Vendors
           </Link>
-          <Link href="/rfqs" className={`nav-tab ${isActive('/rfqs') ? 'active' : ''}`}>
-            RFQs
-          </Link>
-          <span className="nav-tab disabled" title="Coming soon">
-            Vendor Evaluation
-          </span>
-          <Link href="/analytics" className={`nav-tab ${isActive('/analytics') ? 'active' : ''}`}>
-            Analytics
-          </Link>
+          {isSuperAdmin && (
+            <Link href="/rfqs" className={`nav-tab ${isActive('/rfqs') ? 'active' : ''}`}>
+              RFQs
+            </Link>
+          )}
+          {isSuperAdmin && (
+            <span className="nav-tab disabled" title="Coming soon">
+              Vendor Evaluation
+            </span>
+          )}
+          {isSuperAdmin && (
+            <Link href="/analytics" className={`nav-tab ${isActive('/analytics') ? 'active' : ''}`}>
+              Analytics
+            </Link>
+          )}
           {isSuperAdmin && (
             <Link href="/users" className={`nav-tab ${isActive('/users') ? 'active' : ''}`}>
               Users
