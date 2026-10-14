@@ -54,7 +54,9 @@ export default function FieldGrid({
                      type={f.type === 'number' || f.type === 'currency' ? 'number'
                           : f.type === 'date' ? 'date' : 'text'}
                      step={f.type === 'number' || f.type === 'currency' ? 'any' : undefined}
-                     maxLength={f.max} placeholder={f.placeholder}
+                     max={f.type === 'number' || f.type === 'currency' ? f.max : undefined}
+                     maxLength={f.type === 'number' || f.type === 'currency' ? undefined : f.max}
+                     placeholder={f.placeholder}
                      value={String(v ?? '')}
                      onChange={e => onChange(f.key, e.target.value)} />
             )}
