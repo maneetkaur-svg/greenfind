@@ -172,7 +172,7 @@ async function VendorRecord({
     ...sections.map(s => ({ id: s.id, label: s.label })),
     { id: 'contacts', label: 'Contacts' },
     { id: 'categories', label: 'Service categories' },
-    { id: 'geography', label: 'Geography' },
+    { id: 'geography', label: 'Serviceable Geography' },
     { id: 'documents', label: 'Documents' },
   ];
   const active = tabs.find(t => t.id === tab)?.id ?? tabs[0].id;
