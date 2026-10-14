@@ -20,9 +20,9 @@ export default function Sidebar({ isSuperAdmin, showActivity }: { isSuperAdmin: 
           <span className="nav-tab disabled" title="Coming soon">
             Vendor Evaluation
           </span>
-          <span className="nav-tab disabled" title="Coming soon">
+          <Link href="/analytics" className={`nav-tab ${isActive('/analytics') ? 'active' : ''}`}>
             Analytics
-          </span>
+          </Link>
           {isSuperAdmin && (
             <Link href="/users" className={`nav-tab ${isActive('/users') ? 'active' : ''}`}>
               Users
