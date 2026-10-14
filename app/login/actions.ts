@@ -28,6 +28,10 @@ export async function signIn(formData: FormData) {
     redirect('/login?error=' + encodeURIComponent('This account has been deactivated.'));
   }
 
+  // Best-effort — auth.users.last_sign_in_at only ever holds the most
+  // recent login, so this is the one place a real history gets written.
+  await supabase.from('login_log').insert({ profile_id: profile.id });
+
   revalidatePath('/', 'layout');
   redirect('/vendors');
 }
