@@ -144,17 +144,18 @@ export default async function VendorsPage({
         <DashboardCard rows={dash as DashRow[]} selected={industries} q={q} state={state} sort={sort} />
       )}
 
-      <div className="flex items-center gap-3 flex-nowrap mb-4" style={{ overflowX: 'auto' }}>
-        <SearchForm q={q} industries={industries} state={state} sort={sort} />
-        <div className="flex gap-2 shrink-0" style={{ marginLeft: 'auto' }}>
-          <a href={`/vendors/export?${exportParams.toString()}`} className="btn btn-o">⬇ Export</a>
-          {me?.role !== 'user' && (
-            <>
-              {me?.role === 'super_admin' && <Link href="/vendors/import" className="btn btn-o">Import</Link>}
-              <Link href="/vendors/new" className="btn btn-p">+ Add vendor</Link>
-            </>
-          )}
-        </div>
+      <div className="mb-4">
+        <SearchForm q={q} industries={industries} state={state} sort={sort} actions={
+          <>
+            <a href={`/vendors/export?${exportParams.toString()}`} className="btn btn-o">⬇ Export</a>
+            {me?.role !== 'user' && (
+              <>
+                {me?.role === 'super_admin' && <Link href="/vendors/import" className="btn btn-o">Import</Link>}
+                <Link href="/vendors/new" className="btn btn-p">+ Add vendor</Link>
+              </>
+            )}
+          </>
+        } />
       </div>
 
       {error && (
