@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation';
 import { createClient, getMe } from '@/lib/supabase/server';
 import { INDUSTRIES } from '@/lib/constants';
 
@@ -25,7 +26,9 @@ const pct = (n: number, total: number) => total ? Math.round((n / total) * 100) 
  *  blocks on, which should be close to zero, and gaps the portal only asks
  *  about without enforcing, which is why these counts are not zero. */
 export default async function AnalyticsPage() {
-  await getMe();
+  const me = await getMe();
+  if (!me) redirect('/login');
+  if (me.role !== 'super_admin') redirect('/vendors');
   const supabase = await createClient();
 
   const { data: sitesRaw, error: sitesErr } = await supabase
