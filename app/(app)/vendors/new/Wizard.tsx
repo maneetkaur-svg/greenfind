@@ -74,7 +74,7 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
   // Narrowed once, so the union does not have to be re-checked at every use.
   const parent = lookup && lookup.found ? lookup : null;
   const sameAsRegistered = site.is_registered_address !== false;
-  const plantCount = Math.max(0, Math.floor(Number(site.plant_count) || 0));
+  const plantCount = Math.min(50, Math.max(0, Math.floor(Number(site.plant_count) || 0)));
 
   // The plant block repeats exactly as many times as "How many plants?"
   // says — add or remove blank entries as that number changes, but only
@@ -622,8 +622,8 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
                   {plants.length === 0 ? (
                     <div className="hint">Enter how many plants above to add their details.</div>
                   ) : plants.map((p, i) => (
-                    <div key={i} className={i > 0 ? 'mt-6 pt-5 border-t' : ''}
-                         style={i > 0 ? { borderColor: 'var(--line)' } : undefined}>
+                    <div key={i} className={`card p-4 ${i > 0 ? 'mt-4' : ''}`}
+                         style={{ background: 'var(--p50)', borderColor: 'var(--p100)' }}>
                       <div className="text-[11px] font-bold uppercase tracking-[.07em] mb-3"
                            style={{ color: 'var(--p600)' }}>Plant {i + 1}</div>
                       <div className="grid md:grid-cols-2 gap-4">
