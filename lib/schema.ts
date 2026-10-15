@@ -49,6 +49,8 @@ export const SECTIONS: Section[] = [
     fields: [
       { key: 'legal_name', label: 'Legal name', type: 'text', required: true, max: 200,
         hint: 'Exactly as on the GST certificate.' },
+      { key: 'trade_name', label: 'Trade / brand name', type: 'text', max: 200, half: true,
+        hint: 'If different from the legal name.' },
       { key: 'pan', label: 'PAN', type: 'readonly', half: true,
         hint: 'Taken from the GSTIN, or recorded when the vendor was imported. Not editable.' },
       { key: 'entity', label: 'Entity type', type: 'readonly', options: ENTITY_TYPES.map(([a, b]) => [a, b] as [string, string]), half: true,

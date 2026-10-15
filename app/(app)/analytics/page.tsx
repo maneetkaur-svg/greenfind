@@ -18,6 +18,7 @@ type Site = {
 type Company = {
   id: string; entity: string | null; year_established: number | null;
   authorised_signatory: string | null; cheque_on_file: boolean; udyam_number: string | null;
+  trade_name: string | null;
 };
 
 const pct = (n: number, total: number) => total ? Math.round((n / total) * 100) : 0;
@@ -55,7 +56,7 @@ export default async function AnalyticsPage({
 
   const [{ data: companiesRaw }, { data: contactsRaw }, { data: catsRaw }, { data: reqRaw }, { data: docsRaw }] = await Promise.all([
     companyIds.length
-      ? supabase.from('company').select('id, entity, year_established, authorised_signatory, cheque_on_file, udyam_number').in('id', companyIds)
+      ? supabase.from('company').select('id, entity, year_established, authorised_signatory, cheque_on_file, udyam_number, trade_name').in('id', companyIds)
       : Promise.resolve({ data: [] as Company[] }),
     siteIds.length
       ? supabase.from('site_contact').select('site_id, rank, designation, email').in('site_id', siteIds).in('rank', [1, 2])
@@ -120,7 +121,7 @@ export default async function AnalyticsPage({
     byIndustry.set(k, row);
   }
 
-  let entityBlank = 0, msmeIncomplete = 0, yearBlank = 0, signatoryBlank = 0, chequeFalse = 0;
+  let entityBlank = 0, msmeIncomplete = 0, yearBlank = 0, signatoryBlank = 0, chequeFalse = 0, tradeNameBlank = 0;
   for (const s of sites) {
     const c = companyById.get(s.company_id);
     if (!c) continue;
@@ -129,6 +130,7 @@ export default async function AnalyticsPage({
     if (c.year_established === null) yearBlank++;
     if (!c.authorised_signatory) signatoryBlank++;
     if (!c.cheque_on_file) chequeFalse++;
+    if (!c.trade_name) tradeNameBlank++;
   }
   const zeroCategories = sites.filter(s => !sitesWithCategory.has(s.id)).length;
   const contactGapCount = contactGapSites.size;
@@ -255,6 +257,10 @@ export default async function AnalyticsPage({
                 blurb="The Vendor Master Form schema calls these mandatory, but the portal does not currently block saving a vendor without them — so counts here will not be zero.">
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
+            <div className="flex justify-between text-[13px]"><span>Trade / brand name blank</span><span className="font-bold">{tradeNameBlank} · {pct(tradeNameBlank, total)}%</span></div>
+            <Bar n={tradeNameBlank} total={total} />
+          </div>
+          <div>
             <div className="flex justify-between text-[13px]"><span>Entity type blank</span><span className="font-bold">{entityBlank} · {pct(entityBlank, total)}%</span></div>
             <Bar n={entityBlank} total={total} />
           </div>
@@ -289,7 +295,6 @@ export default async function AnalyticsPage({
       <Section title="Required by policy, not captured at all"
                 blurb="These cannot be counted, because there is nowhere in the portal to enter them yet.">
         <ul className="ml-4 list-disc text-[13px]" style={{ color: 'var(--head)' }}>
-          <li>Trade name / brand — the column was removed from the database.</li>
           <li>Geo-tagged image and Site Report (Physical Verification) — scoped, not yet built.</li>
           <li>PAN / Aadhaar of the individual — only asked for Proprietorship; Partnership, LLP and Foreign entities are never asked.</li>
         </ul>
