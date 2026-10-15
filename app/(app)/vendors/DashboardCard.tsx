@@ -25,7 +25,6 @@ export default function DashboardCard({
   const combined = selectedRows.length >= 2
     ? {
         vendors: selectedRows.reduce((sum, r) => sum + r.vendors, 0),
-        active_vendors: selectedRows.reduce((sum, r) => sum + r.active_vendors, 0),
         label: selectedRows.map(r => META[r.industry].label).join(' + '),
       }
     : null;
@@ -45,7 +44,7 @@ export default function DashboardCard({
     <>
       {combined && (
         <div className="note mb-3" data-testid="dash-combined">
-          <b>{combined.label}</b> — {combined.vendors} vendors combined ({combined.active_vendors} active)
+          <b>{combined.label}</b> — {combined.vendors} vendors combined
         </div>
       )}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-5" data-testid="dashboard" aria-label="Vendors onboarded">
