@@ -54,7 +54,6 @@ export default function DashboardCard({
             <div className="text-[24px] font-bold leading-tight" data-testid="dash-active">{total?.vendors ?? 0}</div>
           </div>
           <div className="text-[13px] font-bold mt-3" style={{ color: 'var(--head)' }}>Total Vendors</div>
-          <div className="text-[11.5px] mt-1" style={{ color: 'var(--faint)' }}>{total?.active_vendors ?? 0} active</div>
         </div>
         {byInd.map(r => {
           const m = META[r.industry];
