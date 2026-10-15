@@ -21,6 +21,14 @@ export default function DashboardCard({
 }: { rows: DashRow[]; selected: string[]; q?: string; state?: string; sort?: string }) {
   const total = rows.find(r => r.industry === 'total');
   const byInd = ORDER.map(k => rows.find(r => r.industry === k)).filter((r): r is DashRow => !!r);
+  const selectedRows = byInd.filter(r => selected.includes(r.industry));
+  const combined = selectedRows.length >= 2
+    ? {
+        vendors: selectedRows.reduce((sum, r) => sum + r.vendors, 0),
+        active_vendors: selectedRows.reduce((sum, r) => sum + r.active_vendors, 0),
+        label: selectedRows.map(r => META[r.industry].label).join(' + '),
+      }
+    : null;
 
   const toggleHref = (code: string) => {
     const next = selected.includes(code) ? selected.filter(x => x !== code) : [...selected, code];
@@ -43,6 +51,16 @@ export default function DashboardCard({
         <div className="text-[13px] font-bold mt-3" style={{ color: 'var(--head)' }}>Total Vendors</div>
         <div className="text-[11.5px] mt-1" style={{ color: 'var(--faint)' }}>{total?.active_vendors ?? 0} active</div>
       </div>
+      {combined && (
+        <div className="card metric-box p-4" data-testid="dash-combined">
+          <div className="flex items-center gap-3">
+            <span className="icon-circle icon-grey">Σ</span>
+            <div className="text-[24px] font-bold leading-tight">{combined.vendors}</div>
+          </div>
+          <div className="text-[13px] font-bold mt-3" style={{ color: 'var(--head)' }}>{combined.label}</div>
+          <div className="text-[11.5px] mt-1" style={{ color: 'var(--faint)' }}>{combined.active_vendors} active, combined</div>
+        </div>
+      )}
       {byInd.map(r => {
         const m = META[r.industry];
         const on = selected.includes(r.industry);
