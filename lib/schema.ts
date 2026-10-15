@@ -14,6 +14,8 @@ export type Field = {
   hint?: string;
   placeholder?: string;
   max?: number;
+  /** lower bound for number/currency — a value typed below it is clamped up. */
+  min?: number;
   /** show only when this returns true */
   showIf?: (v: Record<string, unknown>) => boolean;
   /** half width on wide screens */
@@ -92,7 +94,7 @@ export const SECTIONS: Section[] = [
         options: STATES.map(s => [s, s] as [string, string]), half: true },
       { key: 'pincode', label: 'Pincode', type: 'text', required: true, max: 6, half: true },
       { key: 'is_registered_address', label: 'Plant / factory address same as registered address', type: 'bool' },
-      { key: 'plant_count', label: 'How many plants?', type: 'number', half: true, max: 50 },
+      { key: 'plant_count', label: 'How many plants?', type: 'number', half: true, min: 1, max: 50 },
       { key: 'geo_outside_india', label: 'Serves locations outside India', type: 'bool' },
     ],
   },

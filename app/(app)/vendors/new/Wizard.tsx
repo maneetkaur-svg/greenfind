@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import FieldGrid from '../FieldGrid';
+import PlantBlocks, { blankPlant, type Plant } from '../PlantBlocks';
 import { SECTIONS, type Field } from '@/lib/schema';
 import { REGIONS, STATES, RX, panFromGstin, stateFromGstin } from '@/lib/constants';
 import { createVendor, lookupCompany, type LookupResult } from './actions';
@@ -24,17 +25,6 @@ type Pending = { file: File; number: string; validUntil: string };
 type Vals = Record<string, unknown>;
 const sec = (id: string) => SECTIONS.find(s => s.id === id)!;
 const blank = { name: '', designation: '', mobile: '', email: '' };
-
-/** One block per plant, repeated as many times as "How many plants?" says —
- *  not a fixed set of fields, since the count is open-ended. */
-type Plant = {
-  name: string; product: string; address_line1: string; city: string; state: string;
-  pincode: string; gstin: string; contact_name: string; contact_mobile: string; contact_email: string;
-};
-const blankPlant: Plant = {
-  name: '', product: '', address_line1: '', city: '', state: '',
-  pincode: '', gstin: '', contact_name: '', contact_mobile: '', contact_email: '',
-};
 
 export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocRule[] }) {
   const router = useRouter();
@@ -619,70 +609,7 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
 
               {!sameAsRegistered && (
                 <div className="mt-6 pt-5 border-t" style={{ borderColor: 'var(--line)' }}>
-                  {plants.length === 0 ? (
-                    <div className="hint">Enter how many plants above to add their details.</div>
-                  ) : plants.map((p, i) => (
-                    <div key={i} className={`card p-4 ${i > 0 ? 'mt-4' : ''}`}
-                         style={{ background: 'var(--p50)', borderColor: 'var(--p100)' }}>
-                      <div className="text-[11px] font-bold uppercase tracking-[.07em] mb-3"
-                           style={{ color: 'var(--p600)' }}>Plant {i + 1}</div>
-                      <div className="grid md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="lab" htmlFor={`pl_name_${i}`}>Plant name</label>
-                          <input id={`pl_name_${i}`} maxLength={120} value={p.name}
-                                 onChange={e => setPlantField(i, 'name', e.target.value)} />
-                        </div>
-                        <div className="md:col-span-2">
-                          <label className="lab" htmlFor={`pl_product_${i}`}>Product produced here</label>
-                          <textarea id={`pl_product_${i}`} rows={3} value={p.product}
-                                    onChange={e => setPlantField(i, 'product', e.target.value)} />
-                        </div>
-                        <div className="md:col-span-2">
-                          <label className="lab" htmlFor={`pl_addr_${i}`}>Address</label>
-                          <input id={`pl_addr_${i}`} maxLength={255} value={p.address_line1}
-                                 onChange={e => setPlantField(i, 'address_line1', e.target.value)} />
-                        </div>
-                        <div>
-                          <label className="lab" htmlFor={`pl_city_${i}`}>City</label>
-                          <input id={`pl_city_${i}`} maxLength={100} value={p.city}
-                                 onChange={e => setPlantField(i, 'city', e.target.value)} />
-                        </div>
-                        <div>
-                          <label className="lab" htmlFor={`pl_state_${i}`}>State</label>
-                          <select id={`pl_state_${i}`} value={p.state}
-                                  onChange={e => setPlantField(i, 'state', e.target.value)}>
-                            <option value="">Select…</option>
-                            {STATES.map(s => <option key={s} value={s}>{s}</option>)}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="lab" htmlFor={`pl_pin_${i}`}>Pincode</label>
-                          <input id={`pl_pin_${i}`} maxLength={6} value={p.pincode}
-                                 onChange={e => setPlantField(i, 'pincode', e.target.value)} />
-                        </div>
-                        <div>
-                          <label className="lab" htmlFor={`pl_gstin_${i}`}>GSTIN for this plant</label>
-                          <input id={`pl_gstin_${i}`} maxLength={15} value={p.gstin}
-                                 onChange={e => setPlantField(i, 'gstin', e.target.value.toUpperCase())} />
-                        </div>
-                        <div>
-                          <label className="lab" htmlFor={`pl_cname_${i}`}>Contact at this plant</label>
-                          <input id={`pl_cname_${i}`} maxLength={100} value={p.contact_name}
-                                 onChange={e => setPlantField(i, 'contact_name', e.target.value)} />
-                        </div>
-                        <div>
-                          <label className="lab" htmlFor={`pl_cmobile_${i}`}>Mobile</label>
-                          <input id={`pl_cmobile_${i}`} maxLength={10} value={p.contact_mobile}
-                                 onChange={e => setPlantField(i, 'contact_mobile', e.target.value)} />
-                        </div>
-                        <div>
-                          <label className="lab" htmlFor={`pl_cemail_${i}`}>Email</label>
-                          <input id={`pl_cemail_${i}`} maxLength={255} value={p.contact_email}
-                                 onChange={e => setPlantField(i, 'contact_email', e.target.value)} />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                  <PlantBlocks plants={plants} onChange={setPlantField} />
                 </div>
               )}
             </>
