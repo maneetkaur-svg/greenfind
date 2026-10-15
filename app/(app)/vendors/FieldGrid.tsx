@@ -54,17 +54,27 @@ export default function FieldGrid({
                      type={f.type === 'number' || f.type === 'currency' ? 'number'
                           : f.type === 'date' ? 'date' : 'text'}
                      step={f.type === 'number' || f.type === 'currency' ? 'any' : undefined}
+                     min={f.type === 'number' || f.type === 'currency' ? f.min : undefined}
                      max={f.type === 'number' || f.type === 'currency' ? f.max : undefined}
                      maxLength={f.type === 'number' || f.type === 'currency' ? undefined : f.max}
                      placeholder={f.placeholder}
                      value={String(v ?? '')}
+                     onWheel={e => {
+                       // Scrolling over a focused number input silently changes its
+                       // value in most browsers — never wanted here, so the field
+                       // just loses focus instead of reacting to the scroll.
+                       if (f.type === 'number' || f.type === 'currency') e.currentTarget.blur();
+                     }}
                      onChange={e => {
                        let val = e.target.value;
-                       // A native `max` only flags the field invalid — it never stops
-                       // someone typing a bigger number — so clamp it here too.
-                       if ((f.type === 'number' || f.type === 'currency') && f.max !== undefined && val !== '') {
+                       // A native min/max only flags the field invalid — it never
+                       // stops someone typing an out-of-range number — so clamp here too.
+                       if ((f.type === 'number' || f.type === 'currency') && val !== '') {
                          const n = Number(val);
-                         if (!Number.isNaN(n) && n > f.max) val = String(f.max);
+                         if (!Number.isNaN(n)) {
+                           if (f.max !== undefined && n > f.max) val = String(f.max);
+                           else if (f.min !== undefined && n < f.min) val = String(f.min);
+                         }
                        }
                        onChange(f.key, val);
                      }} />

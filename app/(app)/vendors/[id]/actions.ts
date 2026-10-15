@@ -70,6 +70,19 @@ export async function saveSection(
     const pin = values.pincode as string | null;
     if (pin && !RX.pincode.test(pin))
       return { error: 'Pincode must be six digits and cannot start with zero.' };
+    // The repeating plant blocks aren't a plain Field (see SectionForm.tsx) —
+    // read separately, and only kept when the plant address actually differs
+    // from the registered one; otherwise there is nothing to save.
+    if (values.is_registered_address === false) {
+      try {
+        const parsed = JSON.parse(String(formData.get('__plants') ?? '[]'));
+        values.plants = Array.isArray(parsed) ? parsed : [];
+      } catch {
+        values.plants = [];
+      }
+    } else {
+      values.plants = [];
+    }
   }
 
   const supabase = await createClient();

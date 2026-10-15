@@ -1,8 +1,9 @@
 'use client';
-import { useActionState, useState } from 'react';
+import { useActionState, useState, useEffect } from 'react';
 import { saveSection, type SaveState } from './actions';
 import { SECTIONS } from '@/lib/schema';
 import SubmitButton from '@/app/SubmitButton';
+import PlantBlocks, { blankPlant, type Plant } from '../PlantBlocks';
 
 /** Takes the section id, not the section. The definitions contain showIf
  *  functions, and a function cannot be passed from a server component to a
@@ -24,7 +25,33 @@ export default function SectionForm({
   const [state, action] = useActionState<SaveState, FormData>(saveSection, {});
   const [live, setLive] = useState<Record<string, unknown>>(values);
 
+  // The Facility section's plant block is not a plain Field — it's a
+  // repeating array, driven by two of this same section's own fields
+  // (is_registered_address, plant_count), so it lives here rather than
+  // in the generic fields loop below. All hooks are declared unconditionally,
+  // ahead of the "unknown section" early return below.
+  const isSiteSection = sectionId === 'site';
+  const sameAsRegistered = live.is_registered_address !== false;
+  const plantCount = Math.min(50, Math.max(0, Math.floor(Number(live.plant_count) || 0)));
+  const [plants, setPlants] = useState<Plant[]>(
+    isSiteSection && Array.isArray(values.plants) ? (values.plants as Plant[]) : []);
+
+  useEffect(() => {
+    if (!isSiteSection) return;
+    if (sameAsRegistered) { setPlants([]); return; }
+    setPlants(prev => {
+      if (prev.length === plantCount) return prev;
+      const next = prev.slice(0, plantCount);
+      while (next.length < plantCount) next.push({ ...blankPlant });
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plantCount, sameAsRegistered, isSiteSection]);
+
   const set = (k: string, v: unknown) => setLive(p => ({ ...p, [k]: v }));
+  const setPlantField = (i: number, k: keyof Plant, v: string) =>
+    setPlants(prev => prev.map((p, idx) => idx === i ? { ...p, [k]: v } : p));
+
   if (!section) return <p className="text-[13.5px]">Unknown section.</p>;
   const visible = section.fields.filter(f => !f.showIf || f.showIf(live));
   const isBlank = (v: unknown) => v === null || v === undefined || v === '';
@@ -100,10 +127,27 @@ export default function SectionForm({
                        type={f.type === 'number' || f.type === 'currency' ? 'number'
                             : f.type === 'date' ? 'date' : 'text'}
                        step={f.type === 'number' || f.type === 'currency' ? 'any' : undefined}
-                       maxLength={f.max}
+                       min={f.type === 'number' || f.type === 'currency' ? f.min : undefined}
+                       max={f.type === 'number' || f.type === 'currency' ? f.max : undefined}
+                       maxLength={f.type === 'number' || f.type === 'currency' ? undefined : f.max}
                        placeholder={f.placeholder}
                        value={String(v ?? '')}
-                       onChange={e => set(f.key, e.target.value)} />
+                       onWheel={e => {
+                         // Scrolling over a focused number input silently changes its
+                         // value in most browsers — never wanted here.
+                         if (f.type === 'number' || f.type === 'currency') e.currentTarget.blur();
+                       }}
+                       onChange={e => {
+                         let val = e.target.value;
+                         if ((f.type === 'number' || f.type === 'currency') && val !== '') {
+                           const n = Number(val);
+                           if (!Number.isNaN(n)) {
+                             if (f.max !== undefined && n > f.max) val = String(f.max);
+                             else if (f.min !== undefined && n < f.min) val = String(f.min);
+                           }
+                         }
+                         set(f.key, val);
+                       }} />
               )}
 
               {f.hint && <div className="hint">{f.hint}</div>}
@@ -111,6 +155,13 @@ export default function SectionForm({
           );
         })}
       </div>
+
+      {isSiteSection && !sameAsRegistered && (
+        <div className="mt-6 pt-5 border-t" style={{ borderColor: 'var(--line)' }}>
+          <input type="hidden" name="__plants" value={JSON.stringify(plants)} />
+          <PlantBlocks plants={plants} onChange={setPlantField} disabled={readOnly} />
+        </div>
+      )}
 
       {!readOnly && (
         <div className="mt-5">
