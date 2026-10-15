@@ -14,6 +14,7 @@
     "import:docs": "tsx scripts/import/run.ts",
     "import:gstin": "tsx scripts/import/update-gstin.ts",
     "import:gst-details": "tsx scripts/import/update-gst-details.ts",
+    "backfill:city": "tsx scripts/import/backfill-city.ts",
     "classify:industry": "tsx scripts/import/classify-industry.ts",
     "backfill:fields": "tsx scripts/import/backfill-fields.ts",
     "fill:bank-branch": "tsx scripts/import/fill-bank-branch.ts",
