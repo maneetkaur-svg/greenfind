@@ -101,9 +101,10 @@ export default async function VendorsPage({
 
   const total = rows.length;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const showAll = pageParam === 'all';
   const currentPage = Math.min(Math.max(1, Number(pageParam) || 1), totalPages);
-  const pageRows = rows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
-  const pageHref = (p: number) => {
+  const pageRows = showAll ? rows : rows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const pageHref = (p: number | 'all') => {
     const params = new URLSearchParams();
     if (q) params.set('q', q);
     if (industry) params.set('industry', industry);
@@ -273,9 +274,11 @@ export default async function VendorsPage({
       {!error && rows.length > 0 && (
         <div className="flex items-center justify-between gap-3 flex-wrap mt-4">
           <div className="text-[13px]" style={{ color: 'var(--faint)' }}>
-            Showing {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, total)} of {total} vendor{total === 1 ? '' : 's'}
+            {showAll
+              ? `Showing all ${total} vendor${total === 1 ? '' : 's'}`
+              : `Showing ${(currentPage - 1) * PAGE_SIZE + 1}–${Math.min(currentPage * PAGE_SIZE, total)} of ${total} vendor${total === 1 ? '' : 's'}`}
           </div>
-          {totalPages > 1 && (
+          {!showAll && totalPages > 1 && (
             <div className="flex items-center gap-1">
               {currentPage === 1
                 ? <span className="page-btn disabled">‹</span>
@@ -290,6 +293,9 @@ export default async function VendorsPage({
                 : <Link href={pageHref(currentPage + 1)} className="page-btn">›</Link>}
             </div>
           )}
+          {showAll
+            ? <Link href={pageHref(1)} className="text-[13px] font-semibold" style={{ color: 'var(--p600)' }}>Back to pages of {PAGE_SIZE}</Link>
+            : total > PAGE_SIZE && <Link href={pageHref('all')} className="text-[13px] font-semibold" style={{ color: 'var(--p600)' }}>Show all {total} vendors</Link>}
         </div>
       )}
     </>
