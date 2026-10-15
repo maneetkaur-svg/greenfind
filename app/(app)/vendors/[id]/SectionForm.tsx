@@ -114,7 +114,9 @@ export default function SectionForm({
 
       {!readOnly && (
         <div className="mt-5">
-          <SubmitButton pendingText="Saving…">Save {section.label.toLowerCase()}</SubmitButton>
+          <SubmitButton pendingText="Saving…">
+            Save {section.label === 'KYB' ? 'KYB' : section.label.toLowerCase()}
+          </SubmitButton>
         </div>
       )}
     </form>
