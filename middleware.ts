@@ -46,7 +46,7 @@ export async function middleware(request: NextRequest) {
   // until the client-side Supabase SDK reads the fragment and sets a
   // session itself.
   const open = path === '/login' || path === '/setup' || path === '/set-password'
-    || path.startsWith('/onboard');
+    || path.startsWith('/onboard') || path.startsWith('/rfq-respond');
   if (!user && !open) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';

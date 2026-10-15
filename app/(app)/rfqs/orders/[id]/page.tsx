@@ -34,7 +34,7 @@ export default async function RfqWorkspacePage({ params }: { params: Promise<{ i
   const requirement = one(rfq.requirement as unknown as ReqRef | ReqRef[] | null);
 
   const { data: candidateRows, error: candidatesErr } = await supabase.from('rfq_vendor')
-    .select('site_id, match_rank, selected, sent_at, site:site_id(site_code, state, city, company:company(legal_name))')
+    .select('site_id, match_rank, selected, sent_at, status, response_token, site:site_id(site_code, state, city, company:company(legal_name))')
     .eq('rfq_id', id).order('match_rank');
 
   const siteIds = (candidateRows ?? []).map(c => c.site_id);
@@ -49,7 +49,8 @@ export default async function RfqWorkspacePage({ params }: { params: Promise<{ i
     return {
       site_id: c.site_id, site_code: site?.site_code ?? '—', legal_name: company?.legal_name ?? '—',
       state: site?.state ?? null, city: site?.city ?? null, match_rank: c.match_rank,
-      selected: c.selected, sent_at: c.sent_at, contact: contactBySite.get(c.site_id) ?? null,
+      selected: c.selected, sent_at: c.sent_at, status: c.status, response_token: c.response_token,
+      contact: contactBySite.get(c.site_id) ?? null,
     };
   });
   const vendors: Vendor[] = candidates.filter(c => c.selected).map(c => ({ site_id: c.site_id, site_code: c.site_code, legal_name: c.legal_name }));
@@ -115,7 +116,8 @@ export default async function RfqWorkspacePage({ params }: { params: Promise<{ i
 
       <Section n="1" title="Vendor matching &amp; send" blurb="Top matches by industry + geography">
         <VendorMatching rfqId={id} requirementId={requirement?.id ?? ''} candidates={candidates}
-                         alreadySent={STAGE_AFTER_SENT.has(rfq.status)} />
+                         alreadySent={STAGE_AFTER_SENT.has(rfq.status)}
+                         rfqNumber={rfq.rfq_number} rfqTitle={rfq.title} />
       </Section>
 
       {STAGE_AFTER_SENT.has(rfq.status) && (

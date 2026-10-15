@@ -110,9 +110,26 @@ export async function confirmVendorsAndSend(formData: FormData) {
   const supabase = await createClient();
   const now = new Date().toISOString();
   await supabase.from('rfq_vendor')
-    .update({ selected: true, sent_at: now }).eq('rfq_id', rfqId).in('site_id', siteIds);
+    .update({ selected: true, sent_at: now, status: 'sent' }).eq('rfq_id', rfqId).in('site_id', siteIds);
   await supabase.from('rfq')
     .update({ status: 'sent', sent_at: now }).eq('id', rfqId);
+
+  revalidatePath(`/rfqs/orders/${rfqId}`);
+}
+
+/** For a vendor who was sent the RFQ but, after the response window, never
+ *  replied through any channel — logged explicitly rather than left blank,
+ *  since it feeds the vendor's response rate (public.vendor_score). */
+export async function markNoResponse(formData: FormData) {
+  const me = await getMe();
+  if (requireWriter(me)) return;
+  const rfqId = String(formData.get('rfq_id') ?? '');
+  const siteId = String(formData.get('site_id') ?? '');
+
+  const supabase = await createClient();
+  await supabase.from('rfq_vendor')
+    .update({ status: 'no_response', responded_at: new Date().toISOString() })
+    .eq('rfq_id', rfqId).eq('site_id', siteId);
 
   revalidatePath(`/rfqs/orders/${rfqId}`);
 }
