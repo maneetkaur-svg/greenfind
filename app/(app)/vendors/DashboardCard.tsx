@@ -42,45 +42,42 @@ export default function DashboardCard({
   };
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-5" data-testid="dashboard" aria-label="Vendors onboarded">
-      <div className="card metric-box p-4">
-        <div className="flex items-center gap-3">
-          <span className="icon-circle icon-green">🏢</span>
-          <div className="text-[24px] font-bold leading-tight" data-testid="dash-active">{total?.vendors ?? 0}</div>
-        </div>
-        <div className="text-[13px] font-bold mt-3" style={{ color: 'var(--head)' }}>Total Vendors</div>
-        <div className="text-[11.5px] mt-1" style={{ color: 'var(--faint)' }}>{total?.active_vendors ?? 0} active</div>
-      </div>
+    <>
       {combined && (
-        <div className="card metric-box p-4" data-testid="dash-combined">
-          <div className="flex items-center gap-3">
-            <span className="icon-circle icon-grey">Σ</span>
-            <div className="text-[24px] font-bold leading-tight">{combined.vendors}</div>
-          </div>
-          <div className="text-[13px] font-bold mt-3" style={{ color: 'var(--head)' }}>{combined.label}</div>
-          <div className="text-[11.5px] mt-1" style={{ color: 'var(--faint)' }}>{combined.active_vendors} active, combined</div>
+        <div className="note mb-3" data-testid="dash-combined">
+          <b>{combined.label}</b> — {combined.vendors} vendors combined ({combined.active_vendors} active)
         </div>
       )}
-      {byInd.map(r => {
-        const m = META[r.industry];
-        const on = selected.includes(r.industry);
-        return (
-          <Link key={r.industry} href={toggleHref(r.industry)}
-                className={`card metric-box p-4 block ${on ? 'metric-box-selected' : ''}`}
-                data-testid={`dash-${r.industry}`}
-                title={`${r.vendors} on record · ${r.active_vendors} active · ${r.sites} site${r.sites === 1 ? '' : 's'} — click to ${on ? 'remove from' : 'add to'} the filter`}>
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-3">
-                <span className={`icon-circle ${m.color}`}>{m.icon}</span>
-                <div className="text-[24px] font-bold leading-tight">{r.vendors}</div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-5" data-testid="dashboard" aria-label="Vendors onboarded">
+        <div className="card metric-box p-4">
+          <div className="flex items-center gap-3">
+            <span className="icon-circle icon-green">🏢</span>
+            <div className="text-[24px] font-bold leading-tight" data-testid="dash-active">{total?.vendors ?? 0}</div>
+          </div>
+          <div className="text-[13px] font-bold mt-3" style={{ color: 'var(--head)' }}>Total Vendors</div>
+          <div className="text-[11.5px] mt-1" style={{ color: 'var(--faint)' }}>{total?.active_vendors ?? 0} active</div>
+        </div>
+        {byInd.map(r => {
+          const m = META[r.industry];
+          const on = selected.includes(r.industry);
+          return (
+            <Link key={r.industry} href={toggleHref(r.industry)}
+                  className={`card metric-box p-4 block ${on ? 'metric-box-selected' : ''}`}
+                  data-testid={`dash-${r.industry}`}
+                  title={`${r.vendors} on record · ${r.active_vendors} active · ${r.sites} site${r.sites === 1 ? '' : 's'} — click to ${on ? 'remove from' : 'add to'} the filter`}>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-3">
+                  <span className={`icon-circle ${m.color}`}>{m.icon}</span>
+                  <div className="text-[24px] font-bold leading-tight">{r.vendors}</div>
+                </div>
+                {on && <span className="chip c-g tick" style={{ fontSize: 10 }}>✓</span>}
               </div>
-              {on && <span className="chip c-g tick" style={{ fontSize: 10 }}>✓</span>}
-            </div>
-            <div className="text-[13px] font-bold mt-3" style={{ color: 'var(--head)' }}>{m.label}</div>
-            <div className="text-[11.5px] mt-1" style={{ color: 'var(--faint)' }}>{m.description}</div>
-          </Link>
-        );
-      })}
-    </div>
+              <div className="text-[13px] font-bold mt-3" style={{ color: 'var(--head)' }}>{m.label}</div>
+              <div className="text-[11.5px] mt-1" style={{ color: 'var(--faint)' }}>{m.description}</div>
+            </Link>
+          );
+        })}
+      </div>
+    </>
   );
 }
