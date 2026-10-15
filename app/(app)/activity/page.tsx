@@ -8,6 +8,7 @@ type AuditRow = {
   at: string; table_name: string; record_id: string; action: string;
   changed: Record<string, unknown> | null; actor: string | null;
 };
+type VisitRow = { visited_at: string; ip: string | null; user_agent: string | null };
 
 const one = <T,>(v: T | T[] | null): T | null => Array.isArray(v) ? (v[0] ?? null) : v;
 
@@ -17,6 +18,13 @@ export default async function ActivityPage() {
   if (me.email?.toLowerCase() !== ACTIVITY_LOG_EMAIL) redirect('/vendors');
 
   const supabase = await createClient();
+
+  const { data: visitsRaw, error: visitsErr } = await supabase
+    .from('onboard_visit')
+    .select('visited_at, ip, user_agent')
+    .order('visited_at', { ascending: false })
+    .limit(200);
+  const visits = (visitsRaw ?? []) as VisitRow[];
 
   const { data: loginsRaw, error: loginErr } = await supabase
     .from('login_log')
@@ -45,18 +53,44 @@ export default async function ActivityPage() {
     <>
       <h1 className="text-[26px] font-bold">Activity</h1>
       <p className="text-[13.5px] mt-1 mb-5" style={{ color: 'var(--faint)' }}>
-        Visible to you only. Sign-ins and changes across the system, most recent first — up to 200 of each.
+        Visible to you only. Link opens, sign-ins and changes across the system, most recent first — up to 200 of each.
       </p>
 
-      {(loginErr || changesErr) && (
+      {(visitsErr || loginErr || changesErr) && (
         <div className="note r mb-5">
           <b>Some of this could not be loaded.</b>{' '}
-          {loginErr?.message} {changesErr?.message}
+          {visitsErr?.message} {loginErr?.message} {changesErr?.message}
           <div className="hint mt-2">
-            If this says the relation does not exist, sql/28_login_log.sql has not been run.
+            If this says a relation does not exist, sql/28_login_log.sql or sql/32_onboard_visit_log.sql has not been run.
           </div>
         </div>
       )}
+
+      <div className="card overflow-x-auto mb-6">
+        <div className="p-4 border-b" style={{ borderColor: 'var(--line)' }}>
+          <h2 className="text-[15px] font-bold">Vendor sign-up link opens</h2>
+          <p className="text-[12.5px] mt-1" style={{ color: 'var(--faint)' }}>
+            Anonymous visits to the public, no-login sign-up link — not a submission, just the page loading.
+          </p>
+        </div>
+        <table>
+          <thead><tr><th>IP</th><th>Device / browser</th><th>When</th></tr></thead>
+          <tbody>
+            {visits.map((v, i) => (
+              <tr key={i}>
+                <td className="text-[13px]">{v.ip ?? '—'}</td>
+                <td className="text-[12.5px]" style={{ maxWidth: 420 }}>{v.user_agent ?? '—'}</td>
+                <td className="text-[13px]">{new Date(v.visited_at).toLocaleString()}</td>
+              </tr>
+            ))}
+            {visits.length === 0 && (
+              <tr><td colSpan={3} className="text-center" style={{ color: 'var(--faint)' }}>
+                No visits recorded yet — this only starts counting from when it was added.
+              </td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
 
       <div className="card overflow-x-auto mb-6">
         <div className="p-4 border-b" style={{ borderColor: 'var(--line)' }}>
