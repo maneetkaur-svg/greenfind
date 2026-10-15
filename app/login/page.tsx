@@ -34,10 +34,10 @@ export default async function LoginPage({
         <Logo light />
         <div className="max-w-[420px]">
           <h2 className="text-[30px] lg:text-[34px] font-bold leading-[1.25] mb-4" style={{ color: '#fff' }}>
-            Every vendor, one system.
+            Vendor Management Tool
           </h2>
           <p className="text-[14.5px]" style={{ color: 'rgba(255,255,255,.65)' }}>
-            Onboarding, documents, RFQs and delivery — tracked end to end.
+            Onboarding, documents, RFQs and delivery for Fitsol&apos;s supply chain.
           </p>
         </div>
         <div className="text-[12px]" style={{ color: 'rgba(255,255,255,.4)' }}>
