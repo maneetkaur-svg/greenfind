@@ -2,7 +2,7 @@
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 
-const MAX_VEIL_MS = 1500;
+const MAX_VEIL_MS = 10000;
 
 /** The veil+spinner from loading.tsx, but triggered on the click itself
  *  rather than on Next's Suspense fallback. Next prefetches every visible
