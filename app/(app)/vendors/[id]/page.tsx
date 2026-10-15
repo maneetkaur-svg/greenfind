@@ -306,7 +306,7 @@ async function VendorRecord({
                             doc={docFor('epr')} expiryTracked={true} readOnly={readOnly} />
         )}
         {section && (
-          <SectionForm sectionId={section.id} values={source(section.table)}
+          <SectionForm key={section.id} sectionId={section.id} values={source(section.table)}
                        siteId={id} companyId={site.company_id} readOnly={readOnly}
                        isSuperAdmin={me.role === 'super_admin'}
                        gstin={site.gstin as string | null} aadhaarLast4={site.aadhaar_last4 as string | null} />
