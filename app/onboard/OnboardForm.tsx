@@ -289,44 +289,6 @@ export default function OnboardForm({ cats }: { cats: Cat[] }) {
       </div>
 
       <div className="card p-6 mb-5">
-        <div className="text-[11px] font-bold uppercase tracking-[.07em] mb-3" style={{ color: 'var(--p600)' }}>
-          Registered address of business
-        </div>
-        <div className="grid md:grid-cols-2 gap-4">
-          <div className="md:col-span-2">
-            <label className="lab">Address <span className="req">*</span></label>
-            <input value={addressLine1} maxLength={255} onChange={e => setAddressLine1(e.target.value)} />
-          </div>
-          <div>
-            <label className="lab">Pincode <span className="req">*</span></label>
-            <input value={pincode} maxLength={6} inputMode="numeric"
-                   onChange={e => setPincode(e.target.value.replace(/[^0-9]/g, ''))} />
-            {pincodeStatus === 'loading' && <div className="hint">Looking up city and state…</div>}
-            {pincodeStatus === 'found' && <div className="hint">City and state filled in from the pincode — edit either if something looks wrong.</div>}
-            {pincodeStatus === 'not_found' && <div className="err">That pincode was not found. Enter city and state yourself.</div>}
-            {pincodeStatus === 'unresolved_state' && <div className="err">City filled in, but pick your state from the list — it could not be matched automatically.</div>}
-            {pincodeStatus === 'error' && <div className="err">Could not look up that pincode right now. Enter city and state yourself.</div>}
-          </div>
-          <div>
-            <label className="lab">City <span className="req">*</span></label>
-            <input value={city} maxLength={100} onChange={e => setCity(e.target.value)} />
-          </div>
-          <div>
-            <label className="lab">State <span className="req">*</span></label>
-            <select value={state} onChange={e => setState(e.target.value)}>
-              <option value="">Select…</option>
-              {STATES.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="lab">Location</label>
-            <input value={location} maxLength={120} placeholder="e.g. Khushkhera Plant"
-                   onChange={e => setLocation(e.target.value)} />
-          </div>
-        </div>
-      </div>
-
-      <div className="card p-6 mb-5">
         <div className="text-[11px] font-bold uppercase tracking-[.07em] mb-1" style={{ color: 'var(--p600)' }}>
           Service
         </div>
@@ -368,6 +330,44 @@ export default function OnboardForm({ cats }: { cats: Cat[] }) {
             )}
           </>
         )}
+      </div>
+
+      <div className="card p-6 mb-5">
+        <div className="text-[11px] font-bold uppercase tracking-[.07em] mb-3" style={{ color: 'var(--p600)' }}>
+          Registered address of business
+        </div>
+        <div className="grid md:grid-cols-2 gap-4">
+          <div className="md:col-span-2">
+            <label className="lab">Address <span className="req">*</span></label>
+            <input value={addressLine1} maxLength={255} onChange={e => setAddressLine1(e.target.value)} />
+          </div>
+          <div>
+            <label className="lab">Pincode <span className="req">*</span></label>
+            <input value={pincode} maxLength={6} inputMode="numeric"
+                   onChange={e => setPincode(e.target.value.replace(/[^0-9]/g, ''))} />
+            {pincodeStatus === 'loading' && <div className="hint">Looking up city and state…</div>}
+            {pincodeStatus === 'found' && <div className="hint">City and state filled in from the pincode — edit either if something looks wrong.</div>}
+            {pincodeStatus === 'not_found' && <div className="err">That pincode was not found. Enter city and state yourself.</div>}
+            {pincodeStatus === 'unresolved_state' && <div className="err">City filled in, but pick your state from the list — it could not be matched automatically.</div>}
+            {pincodeStatus === 'error' && <div className="err">Could not look up that pincode right now. Enter city and state yourself.</div>}
+          </div>
+          <div>
+            <label className="lab">City <span className="req">*</span></label>
+            <input value={city} maxLength={100} onChange={e => setCity(e.target.value)} />
+          </div>
+          <div>
+            <label className="lab">State <span className="req">*</span></label>
+            <select value={state} onChange={e => setState(e.target.value)}>
+              <option value="">Select…</option>
+              {STATES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="lab">Location</label>
+            <input value={location} maxLength={120} placeholder="e.g. Khushkhera Plant"
+                   onChange={e => setLocation(e.target.value)} />
+          </div>
+        </div>
       </div>
 
       <div className="card p-6 mb-5">
@@ -436,7 +436,7 @@ export default function OnboardForm({ cats }: { cats: Cat[] }) {
             <input value={primary.name} maxLength={100} onChange={e => setPrimary(p => ({ ...p, name: e.target.value }))} />
           </div>
           <div>
-            <label className="lab">Designation</label>
+            <label className="lab">Designation <span className="req">*</span></label>
             <input value={primary.designation} maxLength={100} onChange={e => setPrimary(p => ({ ...p, designation: e.target.value }))} />
           </div>
           <div>
@@ -444,7 +444,7 @@ export default function OnboardForm({ cats }: { cats: Cat[] }) {
             <input value={primary.mobile} maxLength={10} placeholder="9414011223" onChange={e => setPrimary(p => ({ ...p, mobile: e.target.value }))} />
           </div>
           <div>
-            <label className="lab">Email ID</label>
+            <label className="lab">Email ID <span className="req">*</span></label>
             <input value={primary.email} maxLength={255} onChange={e => setPrimary(p => ({ ...p, email: e.target.value }))} />
           </div>
         </div>
