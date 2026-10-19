@@ -67,7 +67,7 @@ export default function OnboardForm({ cats }: { cats: Cat[] }) {
   const [location, setLocation] = useState('');
   const [primary, setPrimary] = useState<Contact>({ ...blankContact });
   const [secondary, setSecondary] = useState<Contact>({ ...blankContact });
-  const [categoryId, setCategoryId] = useState('');
+  const [categoryIds, setCategoryIds] = useState<string[]>([]);
   const [subIds, setSubIds] = useState<string[]>([]);
   const [geo, setGeo] = useState<string[]>([]);
   const [openRegions, setOpenRegions] = useState<string[]>([]);
@@ -85,7 +85,7 @@ export default function OnboardForm({ cats }: { cats: Cat[] }) {
 
   const derivedPan = panFromGstin(gstin);
   const industryCats = cats.filter(c => c.industry === industry);
-  const category = industryCats.find(c => c.id === categoryId);
+  const selectedCats = industryCats.filter(c => categoryIds.includes(c.id));
 
   // Pincode drives city/state instead of the other way round, so the two
   // can never quietly disagree the way free-typed fields can. Fed by
@@ -159,7 +159,7 @@ export default function OnboardForm({ cats }: { cats: Cat[] }) {
       udyam_number: isMsme === true ? udyamNumber.trim() : '',
       site: { address_line1: addressLine1, city, state, pincode, location },
       contacts: [primary, secondary],
-      category_id: categoryId, subcategory_ids: subIds, geography: geo,
+      category_ids: categoryIds, subcategory_ids: subIds, geography: geo,
       how_heard: howHeard === 'Other' ? howHeardOther : howHeard,
       first_time_with_fitsol: firstTime, consent,
     });
@@ -252,7 +252,7 @@ export default function OnboardForm({ cats }: { cats: Cat[] }) {
           <FileField label="PAN card" file={panFile} onChange={setPanFile} />
           <div>
             <label className="lab">Industry type <span className="req">*</span></label>
-            <select value={industry} onChange={e => { setIndustry(e.target.value); setCategoryId(''); setSubIds([]); }}>
+            <select value={industry} onChange={e => { setIndustry(e.target.value); setCategoryIds([]); setSubIds([]); }}>
               <option value="">Select…</option>
               {INDUSTRIES.map(i => <option key={i.code} value={i.code}>{i.label}</option>)}
             </select>
@@ -298,36 +298,57 @@ export default function OnboardForm({ cats }: { cats: Cat[] }) {
           <p className="text-[13px]" style={{ color: 'var(--faint)' }}>No services are set up for this industry yet.</p>
         ) : (
           <>
+            <p className="text-[13px] mb-3" style={{ color: 'var(--faint)' }}>
+              Pick every service you&apos;re registered or set up for — more than one is fine.
+            </p>
             <div className="flex gap-2 flex-wrap mb-4">
-              {industryCats.map(c => (
-                <button key={c.id} type="button"
-                        className={`chip ${categoryId === c.id ? 'c-g tick' : 'c-n'}`}
-                        style={{ padding: '7px 14px', fontSize: 13, cursor: 'pointer' }}
-                        onClick={() => { setCategoryId(c.id); setSubIds([]); }}>
-                  {categoryId === c.id && '✓ '}{c.label}
-                </button>
-              ))}
+              {industryCats.map(c => {
+                const on = categoryIds.includes(c.id);
+                return (
+                  <button key={c.id} type="button"
+                          className={`chip ${on ? 'c-g tick' : 'c-n'}`}
+                          style={{ padding: '7px 14px', fontSize: 13, cursor: 'pointer' }}
+                          onClick={() => {
+                            if (on) {
+                              setCategoryIds(p => p.filter(x => x !== c.id));
+                              setSubIds(p => p.filter(id => !c.subs.some(s => s.id === id)));
+                            } else {
+                              setCategoryIds(p => [...p, c.id]);
+                            }
+                          }}>
+                    {on && '✓ '}{c.label}
+                  </button>
+                );
+              })}
             </div>
-            {category && category.subs.length > 0 && (
-              <div className="card p-4" style={{ background: 'var(--surface-2)' }}>
-                <div className="text-[12px] font-bold mb-3" style={{ color: 'var(--head)' }}>
-                  Sub-category <span className="req">*</span>
+            {selectedCats.map(c => {
+              if (c.subs.length === 0) return null;
+              const n = c.subs.filter(s => subIds.includes(s.id)).length;
+              return (
+                <div key={c.id} className="card p-4 mb-3" style={{ background: 'var(--surface-2)' }}>
+                  <div className="flex justify-between items-center gap-3 mb-3 flex-wrap">
+                    <div className="text-[12px] font-bold" style={{ color: 'var(--head)' }}>
+                      {c.label} — sub-category <span className="req">*</span>
+                    </div>
+                    <span className={`chip ${n ? 'c-g' : 'c-r'}`} style={{ fontSize: 10.5 }}>{n}/{c.subs.length}</span>
+                  </div>
+                  <div className="flex gap-2 flex-wrap">
+                    {c.subs.map(s => {
+                      const on = subIds.includes(s.id);
+                      return (
+                        <button key={s.id} type="button"
+                                className={`chip ${on ? 'c-g tick' : 'c-n'}`}
+                                style={{ padding: '6px 12px', fontSize: 12.5, cursor: 'pointer' }}
+                                onClick={() => setSubIds(p => on ? p.filter(x => x !== s.id) : [...p, s.id])}>
+                          {on && '✓ '}{s.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {!n && <div className="err mt-2">Pick at least one, or remove this service above.</div>}
                 </div>
-                <div className="flex gap-2 flex-wrap">
-                  {category.subs.map(s => {
-                    const on = subIds.includes(s.id);
-                    return (
-                      <button key={s.id} type="button"
-                              className={`chip ${on ? 'c-g tick' : 'c-n'}`}
-                              style={{ padding: '6px 12px', fontSize: 12.5, cursor: 'pointer' }}
-                              onClick={() => setSubIds(p => on ? p.filter(x => x !== s.id) : [...p, s.id])}>
-                        {on && '✓ '}{s.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+              );
+            })}
           </>
         )}
       </div>
