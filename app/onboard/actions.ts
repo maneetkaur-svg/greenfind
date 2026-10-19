@@ -11,7 +11,7 @@ export type SignupPayload = {
   udyam_number: string;
   site: { address_line1: string; city: string; state: string; pincode: string; location: string };
   contacts: { name: string; designation: string; mobile: string; email: string }[];
-  category_id: string;
+  category_ids: string[];
   subcategory_ids: string[];
   geography: string[];
   how_heard: string;
