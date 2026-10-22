@@ -136,8 +136,7 @@ export default function OnboardForm({ cats }: { cats: Cat[] }) {
   const submit = async () => {
     setError('');
     if (!consent) { setError('You must agree to the data-use disclaimer to submit.'); return; }
-    if (!gstFile) { setError('Upload the GST certificate.'); return; }
-    for (const f of [gstFile, ...(panFile ? [panFile] : [])]) {
+    for (const f of [...(gstFile ? [gstFile] : []), ...(panFile ? [panFile] : [])]) {
       if (f.size > MAX_FILE) { setError(`${f.name} is larger than 10 MB.`); return; }
       if (!OK_TYPES.includes(f.type)) { setError('Only PDF, JPG and PNG are accepted.'); return; }
     }
@@ -158,8 +157,10 @@ export default function OnboardForm({ cats }: { cats: Cat[] }) {
     }
 
     try {
-      setUploading('Uploading GST certificate…');
-      await uploadDoc(res.siteId, 'gst', gstFile);
+      if (gstFile) {
+        setUploading('Uploading GST certificate…');
+        await uploadDoc(res.siteId, 'gst', gstFile);
+      }
       if (panFile) {
         setUploading('Uploading PAN card…');
         await uploadDoc(res.siteId, 'pan', panFile);
@@ -234,7 +235,7 @@ export default function OnboardForm({ cats }: { cats: Cat[] }) {
               <div className="err">This does not match the PAN inside your GSTIN ({derivedPan}).</div>
             )}
           </div>
-          <FileField label="GST certificate" file={gstFile} onChange={setGstFile} />
+          <FileField label="GST certificate" file={gstFile} onChange={setGstFile} required={false} />
           <FileField label="PAN card" file={panFile} onChange={setPanFile} required={false} />
           <div>
             <label className="lab">Industry type <span className="req">*</span></label>
