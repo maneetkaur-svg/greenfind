@@ -249,14 +249,8 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
     }
 
     const ifsc = String(company.ifsc ?? '');
-    if (!linked) {
-      if (!company.bank_account_name) out.push({ step: at('banking'), text: 'Bank account name is required.' });
-      if (!company.bank_account_number) out.push({ step: at('banking'), text: 'Account number is required.' });
-      if (!ifsc) out.push({ step: at('banking'), text: 'IFSC is required.' });
-      else if (!RX.ifsc.test(ifsc.toUpperCase()))
-        out.push({ step: at('banking'), text: 'IFSC must be eleven characters, like HDFC0000432.' });
-      if (!company.bank_branch) out.push({ step: at('banking'), text: 'Bank and branch is required.' });
-    }
+    if (!linked && ifsc && !RX.ifsc.test(ifsc.toUpperCase()))
+      out.push({ step: at('banking'), text: 'IFSC must be eleven characters, like HDFC0000432.' });
 
     return out;
   };

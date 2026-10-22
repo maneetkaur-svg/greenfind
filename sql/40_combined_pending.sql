@@ -1,7 +1,7 @@
 -- Combined, one-paste run of everything currently pending against the live
--- database: sql/37, sql/38 and sql/39, unchanged, concatenated in order and
--- wrapped in one transaction so it applies atomically -- either all three
--- land, or (if something unexpected fails) none of them do.
+-- database: sql/37, sql/38, sql/39 and sql/41, unchanged, concatenated in
+-- order and wrapped in one transaction so it applies atomically -- either
+-- all of it lands, or (if something unexpected fails) none of it does.
 --
 --   37 — adds company.proprietor_pan / proprietor_aadhaar_last4 /
 --        proprietor_same_as_poc and vendor_site.plant_count, which were
@@ -12,8 +12,10 @@
 --   39 — public_vendor_signup: drops MSME entirely from the public sign-up
 --        form, makes the PAN upload optional, and attributes an External
 --        site to the signed-in staff member who filled it in themselves.
+--   41 — makes the cancelled cheque and NDA document requirements optional
+--        instead of required, for every industry.
 --
--- Run this once in the Supabase SQL editor instead of pasting 37, 38 and 39
+-- Run this once in the Supabase SQL editor instead of pasting each one
 -- separately. Safe to re-run — every statement in it is idempotent.
 
 begin;
@@ -261,5 +263,15 @@ begin
 end $$;
 
 grant execute on function public.public_vendor_signup(jsonb) to anon;
+
+
+-- ============================================================
+-- sql/41_optional_banking_and_cheque_nda.sql
+-- ============================================================
+
+update public.document_requirement
+   set level = 'optional'
+ where doc_type in ('cheque', 'nda')
+   and level = 'required';
 
 commit;
