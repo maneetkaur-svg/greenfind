@@ -3,8 +3,8 @@ import { useRouter } from 'next/navigation';
 
 const SOURCES: [string, string][] = [
   ['import', 'Import'],
-  ['manual', 'Manual'],
-  ['public_form', 'Public form'],
+  ['manual', 'Internal'],
+  ['public_form', 'External'],
   ['old_portal', 'Old GreenFind Portal'],
 ];
 
@@ -24,6 +24,7 @@ export default function SourceFilter({
     if (state) params.set('state', state);
     if (sort) params.set('sort', sort);
     if (next.length) params.set('source', next.join(','));
+    window.dispatchEvent(new Event('app:navigating'));
     router.push(`/vendors?${params.toString()}`);
   };
 

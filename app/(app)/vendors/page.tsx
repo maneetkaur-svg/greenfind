@@ -10,7 +10,7 @@ type Row = {
   id: string; site_code: string; legal_name: string;
   gstin: string | null; industry: string | null; state: string | null; city: string | null;
   status: string | null; legacy_vendor_code: string | null; services_text: string | null;
-  aadhaar_last4: string | null; source: string | null;
+  aadhaar_last4: string | null; source: string | null; added_by_name: string | null;
   company_id: string; company_code: string; sibling_sites: number;
   docs_attached: number; docs_verified: number; docs_required: number;
   has_pending_request: boolean; updated_at: string;
@@ -23,7 +23,7 @@ function status(r: Row) {
 }
 
 const SOURCE_LABEL: Record<string, string> = {
-  import: 'Import', manual: 'Manual', public_form: 'Public form', old_portal: 'Old GreenFind Portal',
+  import: 'Import', manual: 'Internal', public_form: 'External', old_portal: 'Old GreenFind Portal',
 };
 const INDUSTRY_ICON: Record<string, string> = {
   recycling: '♻️', transportation: '🚚', packaging: '📦', warehouse: '🏭',
@@ -272,7 +272,14 @@ export default async function VendorsPage({
                         <span className="chip c-a ml-1">REQUEST OPEN</span>
                       )}
                     </td>
-                    <td className="text-[13px]">{r.source ? SOURCE_LABEL[r.source] ?? r.source : '—'}</td>
+                    <td className="text-[13px]">
+                      {r.source ? SOURCE_LABEL[r.source] ?? r.source : '—'}
+                      {(r.source === 'manual' || r.source === 'public_form') && r.added_by_name && (
+                        <div className="text-[11.5px]" style={{ color: 'var(--faint)' }}>
+                          Added by {r.added_by_name}
+                        </div>
+                      )}
+                    </td>
                     <td className="text-center" style={{ color: 'var(--faint)' }}>›</td>
                   </tr>
                 );
