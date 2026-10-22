@@ -4,6 +4,17 @@
 -- later from the authenticated vendor record. Drops the is_msme/
 -- msme_category/udyam_number inputs and validation entirely; the company
 -- row is created with is_msme left at its default (false).
+--
+-- Also: if a signed-in staff member fills this out themselves (e.g. from
+-- the "Vendor sign-up link" in the sidebar, in the same browser they're
+-- logged in on), attribute the site to them via created_by -- the same
+-- column 'manual' entries already use, and the one site_summary's
+-- added_by_name already reads. This function is security definer and
+-- anon-callable, but auth.uid() still reflects the real caller's session
+-- when one exists -- security definer only changes whose PRIVILEGES the
+-- function runs with, not what auth.uid() reports. A genuinely anonymous
+-- submission has no session, so auth.uid() is null and created_by stays
+-- null -- no name is ever attached to an outside vendor's own submission.
 create or replace function public.public_vendor_signup(p jsonb)
 returns jsonb
 language plpgsql
@@ -36,6 +47,7 @@ declare
   v_site_id       uuid;
   v_site_cd       text;
   v_sub_count     int;
+  v_uid           uuid := (select id from public.profile where id = auth.uid() and is_active);
 begin
   if v_gstin !~ '^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][A-Z0-9]Z[A-Z0-9]$' then
     raise exception 'That GSTIN is not valid. Fifteen characters, with the PAN inside it.';
@@ -131,11 +143,11 @@ begin
   begin
     insert into public.vendor_site (
       company_id, site_code, site_name, gstin, industry, address_line1, city, state, pincode,
-      status, migrated_from_portal, source, created_at
+      status, migrated_from_portal, source, created_at, created_by
     ) values (
       v_company, v_site_cd, nullif(v_site->>'location',''), v_gstin, v_industry::industry_type,
       v_site->>'address_line1', v_site->>'city', v_site->>'state', v_site->>'pincode',
-      'pending', false, 'public_form', now()
+      'pending', false, 'public_form', now(), v_uid
     ) returning id into v_site_id;
   exception when others then
     delete from public.company where id = v_company;
