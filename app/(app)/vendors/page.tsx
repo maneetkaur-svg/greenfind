@@ -4,6 +4,7 @@ import { INDUSTRIES } from '@/lib/constants';
 import DashboardCard, { type DashRow } from './DashboardCard';
 import SearchForm from './SearchForm';
 import RowLink from './RowLink';
+import SourceFilter from './SourceFilter';
 
 type Row = {
   id: string; site_code: string; legal_name: string;
@@ -54,8 +55,8 @@ function pageNumbers(current: number, total: number): (number | '…')[] {
 
 export default async function VendorsPage({
   searchParams,
-}: { searchParams: Promise<{ q?: string; industry?: string; state?: string; sort?: string; page?: string }> }) {
-  const { q, industry, state, sort, page: pageParam } = await searchParams;
+}: { searchParams: Promise<{ q?: string; industry?: string; state?: string; source?: string; sort?: string; page?: string }> }) {
+  const { q, industry, state, source, sort, page: pageParam } = await searchParams;
   const me = await getMe();
   const supabase = await createClient();
 
@@ -78,19 +79,18 @@ export default async function VendorsPage({
   // The dashboard is a nicety: if the view is not there yet (06_data_fit.sql not run) the page still works.
   const { data: dash } = await supabase.from('vendor_dashboard').select('industry, vendors, active_vendors, sites');
 
+  const sources = (source ?? '').split(',').filter(Boolean);
+
   let rows = (data ?? []) as Row[];
   if (q) {
     const needle = q.toLowerCase();
     rows = rows.filter(r =>
       `${r.legal_name} ${r.gstin ?? ''} ${r.site_code} ${r.legacy_vendor_code ?? ''} ${r.services_text ?? ''}`.toLowerCase().includes(needle));
   }
+  if (sources.length) rows = rows.filter(r => !!r.source && sources.includes(r.source));
   if (sort === 'name_asc' || sort === 'name_desc') {
     const dir = sort === 'name_asc' ? 1 : -1;
     rows = [...rows].sort((a, b) => dir * a.legal_name.localeCompare(b.legal_name));
-  } else if (sort === 'source_asc' || sort === 'source_desc') {
-    const dir = sort === 'source_asc' ? 1 : -1;
-    const label = (r: Row) => (r.source ? SOURCE_LABEL[r.source] ?? r.source : 'zzz'); // unknown source sorts last
-    rows = [...rows].sort((a, b) => dir * label(a).localeCompare(label(b)));
   }
 
   // Preserves the current search/filter while only the sort changes.
@@ -99,6 +99,7 @@ export default async function VendorsPage({
     if (q) params.set('q', q);
     if (industry) params.set('industry', industry);
     if (state) params.set('state', state);
+    if (source) params.set('source', source);
     params.set('sort', next);
     return `/vendors?${params.toString()}`;
   };
@@ -113,6 +114,7 @@ export default async function VendorsPage({
     if (q) params.set('q', q);
     if (industry) params.set('industry', industry);
     if (state) params.set('state', state);
+    if (source) params.set('source', source);
     if (sort) params.set('sort', sort);
     params.set('page', String(p));
     return `/vendors?${params.toString()}`;
@@ -121,11 +123,12 @@ export default async function VendorsPage({
   if (sort) clearParams.set('sort', sort);
   const clearHref = clearParams.toString() ? `/vendors?${clearParams.toString()}` : '/vendors';
 
-  // Export respects whatever filter is currently applied — same q/industry/state.
+  // Export respects whatever filter is currently applied — same q/industry/state/source.
   const exportParams = new URLSearchParams();
   if (q) exportParams.set('q', q);
   if (industry) exportParams.set('industry', industry);
   if (state) exportParams.set('state', state);
+  if (source) exportParams.set('source', source);
 
   // Service category — fetched only for the 20 rows actually shown, not the
   // whole filtered set, since nothing else on this page needs it.
@@ -213,14 +216,7 @@ export default async function VendorsPage({
                 <th>Industry / service</th><th>State (by GST)</th>
                 <th>Documents</th><th>Completeness</th>
                 <th>
-                  <Link href={sortHref(sort === 'source_asc' ? 'source_desc' : 'source_asc')}
-                        className="inline-flex items-center gap-1" style={{ color: 'inherit' }}
-                        title="Sort / group by source">
-                    Source
-                    <span style={{ opacity: sort === 'source_asc' || sort === 'source_desc' ? 1 : .35, fontSize: 11 }}>
-                      {sort === 'source_desc' ? '▼' : sort === 'source_asc' ? '▲' : '⇅'}
-                    </span>
-                  </Link>
+                  <SourceFilter selected={sources} q={q} industry={industry} state={state} sort={sort} />
                 </th>
                 <th></th>
               </tr>
