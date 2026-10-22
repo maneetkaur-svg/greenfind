@@ -29,8 +29,10 @@ export async function GET(request: NextRequest) {
   const q = searchParams.get('q') ?? '';
   const industryParam = searchParams.get('industry') ?? '';
   const state = searchParams.get('state') ?? '';
+  const sourceParam = searchParams.get('source') ?? '';
 
   const industries = industryParam.split(',').filter(Boolean);
+  const sources = sourceParam.split(',').filter(Boolean);
   const realIndustries = industries.filter(i => i !== 'unclassified');
   const wantsUnclassified = industries.includes('unclassified');
 
@@ -57,6 +59,7 @@ export async function GET(request: NextRequest) {
       `${r.legal_name} ${r.gstin ?? ''} ${r.site_code} ${r.legacy_vendor_code ?? ''} ${r.services_text ?? ''}`
         .toLowerCase().includes(needle));
   }
+  if (sources.length) rows = rows.filter(r => !!r.source && sources.includes(r.source));
 
   const header = ['Site Code', 'Legacy Code', 'Vendor', 'GSTIN', 'Industry', 'State', 'City', 'Status', 'Source', 'Documents', 'Completeness'];
   const body = rows.map(r => [
