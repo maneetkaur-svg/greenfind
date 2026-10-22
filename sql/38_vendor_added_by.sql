@@ -5,10 +5,16 @@
 -- anonymously, but it does have the primary site_contact the vendor typed
 -- in themselves (rank 1) -- use that instead. 'import' and 'old_portal'
 -- carry no single meaningful name, so they stay blank.
+--
+-- Based on sql/33_restore_trade_name.sql's column list (the live shape --
+-- sql/20's version this was first drafted against had already dropped
+-- trade_name, which CREATE OR REPLACE VIEW rejects reordering/removing).
+-- added_by_name is appended at the end, which is all CREATE OR REPLACE VIEW
+-- allows for an existing view.
 create or replace view public.site_summary as
 select
   s.id, s.site_code, s.site_name, s.gstin, s.industry, s.state, s.city, s.pincode,
-  c.id as company_id, c.company_code, c.legal_name, c.pan,
+  c.id as company_id, c.company_code, c.legal_name, c.trade_name, c.pan,
   c.is_msme, c.msme_category,
   (select count(*) from public.vendor_site x
      where x.company_id = c.id and x.deleted_at is null) as sibling_sites,
