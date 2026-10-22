@@ -1,10 +1,12 @@
 -- Vendor master view: show who added a vendor, for the sources where that
--- actually means a person. 'manual' (now shown as "Internal") already
--- records the staff member on vendor_site.created_by; 'public_form' (now
--- shown as "External") never has a created_by since it's submitted
--- anonymously, but it does have the primary site_contact the vendor typed
--- in themselves (rank 1) -- use that instead. 'import' and 'old_portal'
--- carry no single meaningful name, so they stay blank.
+-- actually means a person. 'manual' (now shown as "Internal") always
+-- records the staff member on vendor_site.created_by. 'public_form' (now
+-- shown as "External") only has a created_by when a signed-in staff
+-- member filled the public form themselves in their own browser (see
+-- sql/39_remove_public_msme.sql) -- a genuinely external vendor's own
+-- submission has no session, so created_by is null and no name is ever
+-- shown for it, just the "External" label on its own. 'import' and
+-- 'old_portal' carry no single meaningful name, so they stay blank too.
 --
 -- Based on sql/33_restore_trade_name.sql's column list (the live shape --
 -- sql/20's version this was first drafted against had already dropped
@@ -42,10 +44,8 @@ select
   s.status, s.legacy_vendor_code, s.services_text, c.credit_period_days,
   s.aadhaar_last4, s.source,
   case
-    when s.source = 'manual' then (select p.full_name from public.profile p where p.id = s.created_by)
-    when s.source = 'public_form' then (
-      select sc.name from public.site_contact sc
-       where sc.site_id = s.id order by sc.rank asc limit 1)
+    when s.source in ('manual', 'public_form')
+      then (select p.full_name from public.profile p where p.id = s.created_by)
     else null
   end as added_by_name
 from public.vendor_site s
