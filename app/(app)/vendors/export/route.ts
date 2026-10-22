@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient, getMe } from '@/lib/supabase/server';
 
 const SOURCE_LABEL: Record<string, string> = {
-  import: 'Import', manual: 'Manual', public_form: 'Public form', old_portal: 'Old GreenFind Portal',
+  import: 'Import', manual: 'Internal', public_form: 'External', old_portal: 'Old GreenFind Portal',
 };
 
 type Row = {
