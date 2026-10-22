@@ -87,6 +87,10 @@ export default async function VendorsPage({
   if (sort === 'name_asc' || sort === 'name_desc') {
     const dir = sort === 'name_asc' ? 1 : -1;
     rows = [...rows].sort((a, b) => dir * a.legal_name.localeCompare(b.legal_name));
+  } else if (sort === 'source_asc' || sort === 'source_desc') {
+    const dir = sort === 'source_asc' ? 1 : -1;
+    const label = (r: Row) => (r.source ? SOURCE_LABEL[r.source] ?? r.source : 'zzz'); // unknown source sorts last
+    rows = [...rows].sort((a, b) => dir * label(a).localeCompare(label(b)));
   }
 
   // Preserves the current search/filter while only the sort changes.
@@ -207,7 +211,18 @@ export default async function VendorsPage({
                   </Link>
                 </th>
                 <th>Industry / service</th><th>State (by GST)</th>
-                <th>Documents</th><th>Completeness</th><th>Source</th><th></th>
+                <th>Documents</th><th>Completeness</th>
+                <th>
+                  <Link href={sortHref(sort === 'source_asc' ? 'source_desc' : 'source_asc')}
+                        className="inline-flex items-center gap-1" style={{ color: 'inherit' }}
+                        title="Sort / group by source">
+                    Source
+                    <span style={{ opacity: sort === 'source_asc' || sort === 'source_desc' ? 1 : .35, fontSize: 11 }}>
+                      {sort === 'source_desc' ? '▼' : sort === 'source_asc' ? '▲' : '⇅'}
+                    </span>
+                  </Link>
+                </th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
