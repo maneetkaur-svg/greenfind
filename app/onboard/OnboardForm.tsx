@@ -126,11 +126,13 @@ export default function OnboardForm({ cats }: { cats: Cat[] }) {
     const { error: upErr } = await supabase.storage.from('vendor-documents')
       .upload(path, file, { contentType: file.type || undefined, upsert: false });
     if (upErr) throw new Error(`${DOC_LABEL[docType]}: ${upErr.message}`);
-    const { error: rowErr } = await supabase.from('site_document').insert({
-      site_id: siteId, doc_type: docType, storage_path: path,
-      file_name: file.name, file_size: file.size, mime_type: file.type || null,
+    // A security-definer RPC rather than a direct table insert -- see
+    // sql/43_public_attach_document_rpc.sql for why.
+    const { error: rpcErr } = await supabase.rpc('public_attach_document', {
+      p_site_id: siteId, p_doc_type: docType, p_storage_path: path,
+      p_file_name: file.name, p_file_size: file.size, p_mime_type: file.type || null,
     });
-    if (rowErr) throw new Error(`${DOC_LABEL[docType]}: ${rowErr.message}`);
+    if (rpcErr) throw new Error(`${DOC_LABEL[docType]}: ${rpcErr.message}`);
   };
 
   const submit = async () => {
