@@ -26,7 +26,11 @@ export default function DashboardCard({
   rows, selected, q, state, sort,
 }: { rows: DashRow[]; selected: string[]; q?: string; state?: string; sort?: string }) {
   const total = rows.find(r => r.industry === 'total');
-  const byInd = ORDER.map(k => rows.find(r => r.industry === k)).filter((r): r is DashRow => !!r);
+  // vendor_dashboard only has a row per industry that actually has a vendor
+  // in it (it's a GROUP BY), so a brand-new industry with nothing in it yet
+  // would otherwise just be missing here rather than showing zero — fall
+  // back to an explicit zero row so the tile always appears.
+  const byInd = ORDER.map(k => rows.find(r => r.industry === k) ?? { industry: k, vendors: 0, active_vendors: 0, sites: 0 });
   const selectedRows = byInd.filter(r => selected.includes(r.industry));
   const combined = selectedRows.length >= 2
     ? {
