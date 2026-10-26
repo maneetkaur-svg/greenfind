@@ -1,10 +1,19 @@
 import { redirect } from 'next/navigation';
 import { createClient, getMe } from '@/lib/supabase/server';
 import { ACTIVITY_LOG_EMAIL } from '@/lib/constants';
+import { istDateKey } from '@/lib/format';
 
 const DAY = 24 * 60 * 60 * 1000;
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const pct = (n: number, total: number) => total ? Math.round((n / total) * 100) : 0;
-const dayKey = (iso: string) => iso.slice(0, 10);
+const dayKey = istDateKey;
+/** `key` is already a YYYY-MM-DD IST calendar day — format it for display
+ *  without parsing it back through Date/timeZone, which would re-apply a
+ *  (now redundant, possibly conflicting) zone conversion. */
+const formatDayKey = (key: string) => {
+  const [, m, d] = key.split('-').map(Number);
+  return `${MONTHS[m - 1]} ${d}`;
+};
 
 const Metric = ({ label, value, note }: { label: string; value: number | string; note?: string }) => (
   <div className="card p-4">
@@ -33,7 +42,7 @@ export default async function AdoptionPage() {
   const supabase = await createClient();
   const now = new Date();
   const since30 = new Date(now.getTime() - 30 * DAY).toISOString();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+  const todayKey = istDateKey(now);
 
   const [
     { data: loginsRaw, error: loginErr },
@@ -55,7 +64,7 @@ export default async function AdoptionPage() {
   const sites = (sitesRaw ?? []) as { source: string | null; created_at: string }[];
   const docSites = (docSitesRaw ?? []) as { docs_attached: number; docs_required: number }[];
 
-  const dau = new Set(logins.filter(l => l.logged_in_at >= startOfToday).map(l => l.profile_id)).size;
+  const dau = new Set(logins.filter(l => dayKey(l.logged_in_at) === todayKey).map(l => l.profile_id)).size;
   const mau = new Set(logins.map(l => l.profile_id)).size;
 
   const publicVisits30 = onboardVisits.length;
@@ -70,7 +79,7 @@ export default async function AdoptionPage() {
   const days: { date: string; dau: number; onboardVisits: number; wizardOpens: number; publicSubmits: number; manualSubmits: number }[] = [];
   for (let i = 13; i >= 0; i--) {
     const d = new Date(now.getTime() - i * DAY);
-    const key = d.toISOString().slice(0, 10);
+    const key = istDateKey(d);
     days.push({
       date: key,
       dau: new Set(logins.filter(l => dayKey(l.logged_in_at) === key).map(l => l.profile_id)).size,
@@ -140,7 +149,7 @@ export default async function AdoptionPage() {
           <tbody>
             {days.map(d => (
               <tr key={d.date} className="border-t" style={{ borderColor: 'var(--line)' }}>
-                <td className="py-2">{new Date(d.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</td>
+                <td className="py-2">{formatDayKey(d.date)}</td>
                 <td className="py-2 text-right">{d.dau}</td>
                 <td className="py-2 text-right">{d.onboardVisits}</td>
                 <td className="py-2 text-right">{d.publicSubmits}</td>
