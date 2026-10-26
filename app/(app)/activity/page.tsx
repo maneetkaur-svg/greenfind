@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { createClient, getMe } from '@/lib/supabase/server';
 import { ACTIVITY_LOG_EMAIL } from '@/lib/constants';
+import { formatDateTime } from '@/lib/format';
 
 type ProfileRef = { full_name: string; email: string | null };
 type LoginRow = { logged_in_at: string; profile: ProfileRef | ProfileRef[] | null };
@@ -80,7 +81,7 @@ export default async function ActivityPage() {
               <tr key={i}>
                 <td className="text-[13px]">{v.ip ?? '—'}</td>
                 <td className="text-[12.5px]" style={{ maxWidth: 420 }}>{v.user_agent ?? '—'}</td>
-                <td className="text-[13px]">{new Date(v.visited_at).toLocaleString()}</td>
+                <td className="text-[13px]">{formatDateTime(v.visited_at)}</td>
               </tr>
             ))}
             {visits.length === 0 && (
@@ -105,7 +106,7 @@ export default async function ActivityPage() {
                 <tr key={i}>
                   <td className="font-semibold" style={{ color: 'var(--head)' }}>{p?.full_name ?? '—'}</td>
                   <td className="text-[13px]">{p?.email ?? '—'}</td>
-                  <td className="text-[13px]">{new Date(l.logged_in_at).toLocaleString()}</td>
+                  <td className="text-[13px]">{formatDateTime(l.logged_in_at)}</td>
                 </tr>
               );
             })}
@@ -152,7 +153,7 @@ export default async function ActivityPage() {
                       </div>
                     )) : '—'}
                   </td>
-                  <td className="text-[13px]">{new Date(c.at).toLocaleString()}</td>
+                  <td className="text-[13px]">{formatDateTime(c.at)}</td>
                 </tr>
               );
             })}
