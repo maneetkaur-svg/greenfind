@@ -1,10 +1,16 @@
 /** Reference data that does not change per install.
  *  Categories and document rules live in the database — see 03_reference_data.sql. */
 
-/** Gates /activity — a specific person's own view, not a role, since it
- *  was asked for as Maneet Kaur's view specifically rather than shared
- *  with every super admin. */
-export const ACTIVITY_LOG_EMAIL = 'maneet.kaur@fitsol.green';
+/** Gates /activity and /adoption — a specific person's own view, not a
+ *  role, since both were asked for as Maneet Kaur's view specifically
+ *  rather than shared with every super admin.
+ *
+ *  maneet.kaur@fitsol.green (the value this held before) has an auth.users
+ *  row but no matching profile row, so getMe() always returns null for it
+ *  and it can never actually sign in — confirmed directly against the live
+ *  database, not assumed. maneetkaur1507@gmail.com is the account with a
+ *  real, active profile that's actually being signed in with. */
+export const ACTIVITY_LOG_EMAIL = 'maneetkaur1507@gmail.com';
 
 export const INDUSTRIES = [
   { code: 'recycling',      label: 'Recycling' },
