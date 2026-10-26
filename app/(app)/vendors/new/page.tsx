@@ -9,6 +9,11 @@ export default async function NewVendorPage() {
 
   const supabase = await createClient();
 
+  // Best-effort, same reasoning as the public onboard page's visit log —
+  // feeds the Add Vendor funnel on /adoption (opened vs. actually created).
+  try { await supabase.from('wizard_visit').insert({ profile_id: me.id }); }
+  catch { /* best-effort — never blocks the page */ }
+
   const { data: rules } = await supabase
     .from('document_requirement')
     .select('industry, level, document_type!inner (code, label, applies_to, expiry_tracked, uploaded_by_party, sort)');
