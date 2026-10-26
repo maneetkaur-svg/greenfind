@@ -17,6 +17,7 @@ export const INDUSTRIES = [
   { code: 'packaging',      label: 'Packaging' },
   { code: 'transportation', label: 'Transportation' },
   { code: 'warehouse',      label: 'Warehouse' },
+  { code: 'scrap_trading',  label: 'Scrap Trading' },
 ] as const;
 export type Industry = (typeof INDUSTRIES)[number]['code'];
 

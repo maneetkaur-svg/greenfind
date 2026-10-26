@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import OthersToggle from './OthersToggle';
 
 export type DashRow = { industry: string; vendors: number; active_vendors: number; sites: number };
 
@@ -7,9 +8,14 @@ const META: Record<string, { label: string; icon: string; color: string; descrip
   transportation: { label: 'Transportation', icon: '🚚', color: 'icon-purple', description: 'Vendors in transportation' },
   packaging:      { label: 'Packaging',      icon: '📦', color: 'icon-orange', description: 'Vendors in packaging' },
   warehouse:      { label: 'Warehouse',      icon: '🏭', color: 'icon-teal',   description: 'Vendors in warehouse' },
+  scrap_trading:  { label: 'Scrap Trading',  icon: '🔩', color: 'icon-amber',  description: 'Vendors in scrap trading' },
   unclassified:   { label: 'Others',         icon: '•••', color: 'icon-grey', description: 'Vendors in other categories' },
 };
-const ORDER = ['recycling', 'transportation', 'packaging', 'warehouse', 'unclassified'];
+// The six main tiles: Total plus exactly these five industries. 'unclassified'
+// ("Others") is deliberately not in here — six fixed tiles keeps this grid
+// from growing every time an industry is added; Others lives behind the
+// "View other" toggle below instead, so it never distorts this row.
+const ORDER = ['recycling', 'transportation', 'packaging', 'warehouse', 'scrap_trading'];
 
 /** The vendor list's dashboard: one metric box per industry, plus a Total
  *  box. Clicking a box toggles that industry into (or out of) the current
@@ -76,6 +82,7 @@ export default function DashboardCard({
           );
         })}
       </div>
+      <OthersToggle row={rows.find(r => r.industry === 'unclassified')} selected={selected} q={q} state={state} sort={sort} />
     </>
   );
 }

@@ -86,6 +86,7 @@ summary::marker { content: ''; }
 .icon-orange { background: #FFF0D8; color: #EF8B12; }
 .icon-teal   { background: #DEF4F2; color: #178D87; }
 .icon-grey   { background: #EDF0F4; color: #5B687C; }
+.icon-amber  { background: #FDEBD3; color: #B5650D; }
 
 /* A metric box on the dashboard lifts slightly on hover, same as a card
    link elsewhere, to hint it is clickable. */

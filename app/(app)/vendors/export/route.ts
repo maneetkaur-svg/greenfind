@@ -9,7 +9,7 @@ type Row = {
   site_code: string; legacy_vendor_code: string | null; legal_name: string;
   gstin: string | null; industry: string | null; services_text: string | null;
   state: string | null; city: string | null; status: string | null; source: string | null;
-  docs_attached: number; docs_required: number;
+  added_by_name: string | null; docs_attached: number; docs_required: number;
 };
 
 function csvCell(v: unknown): string {
@@ -30,15 +30,17 @@ export async function GET(request: NextRequest) {
   const industryParam = searchParams.get('industry') ?? '';
   const state = searchParams.get('state') ?? '';
   const sourceParam = searchParams.get('source') ?? '';
+  const addedByParam = searchParams.get('addedBy') ?? '';
 
   const industries = industryParam.split(',').filter(Boolean);
   const sources = sourceParam.split(',').filter(Boolean);
+  const addedBys = addedByParam.split(',').filter(Boolean);
   const realIndustries = industries.filter(i => i !== 'unclassified');
   const wantsUnclassified = industries.includes('unclassified');
 
   const supabase = await createClient();
   let query = supabase.from('site_summary').select(
-    'site_code, legacy_vendor_code, legal_name, gstin, industry, services_text, state, city, status, source, docs_attached, docs_required'
+    'site_code, legacy_vendor_code, legal_name, gstin, industry, services_text, state, city, status, source, added_by_name, docs_attached, docs_required'
   ).order('updated_at', { ascending: false });
 
   if (industries.length) {
@@ -60,12 +62,14 @@ export async function GET(request: NextRequest) {
         .toLowerCase().includes(needle));
   }
   if (sources.length) rows = rows.filter(r => !!r.source && sources.includes(r.source));
+  if (addedBys.length) rows = rows.filter(r => !!r.added_by_name && addedBys.includes(r.added_by_name));
 
-  const header = ['Site Code', 'Legacy Code', 'Vendor', 'GSTIN', 'Industry', 'State', 'City', 'Status', 'Source', 'Documents', 'Completeness'];
+  const header = ['Site Code', 'Legacy Code', 'Vendor', 'GSTIN', 'Industry', 'State', 'City', 'Status', 'Source', 'Added By', 'Documents', 'Completeness'];
   const body = rows.map(r => [
     r.site_code, r.legacy_vendor_code ?? '', r.legal_name, r.gstin ?? '',
     r.industry ?? 'Unclassified', r.state ?? '', r.city ?? '', r.status ?? '',
     r.source ? (SOURCE_LABEL[r.source] ?? r.source) : '',
+    r.added_by_name ?? '',
     `${r.docs_attached}/${r.docs_required}`,
     r.docs_required > 0 && r.docs_attached >= r.docs_required ? 'Complete'
       : r.docs_attached === 0 ? 'No documents' : 'Incomplete',
