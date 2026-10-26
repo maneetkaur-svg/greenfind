@@ -26,7 +26,7 @@ const SOURCE_LABEL: Record<string, string> = {
   import: 'Import', manual: 'Internal', public_form: 'External', old_portal: 'Old GreenFind Portal',
 };
 const INDUSTRY_ICON: Record<string, string> = {
-  recycling: '♻️', transportation: '🚚', packaging: '📦', warehouse: '🏭',
+  recycling: '♻️', transportation: '🚚', packaging: '📦', warehouse: '🏭', scrap_trading: '🔩',
 };
 const AVATAR_COLORS = ['icon-green', 'icon-blue', 'icon-purple', 'icon-orange', 'icon-teal', 'icon-grey'];
 function initials(name: string) {
@@ -55,8 +55,8 @@ function pageNumbers(current: number, total: number): (number | '…')[] {
 
 export default async function VendorsPage({
   searchParams,
-}: { searchParams: Promise<{ q?: string; industry?: string; state?: string; source?: string; sort?: string; page?: string }> }) {
-  const { q, industry, state, source, sort, page: pageParam } = await searchParams;
+}: { searchParams: Promise<{ q?: string; industry?: string; state?: string; source?: string; addedBy?: string; sort?: string; page?: string }> }) {
+  const { q, industry, state, source, addedBy, sort, page: pageParam } = await searchParams;
   const me = await getMe();
   const supabase = await createClient();
 
@@ -80,14 +80,21 @@ export default async function VendorsPage({
   const { data: dash } = await supabase.from('vendor_dashboard').select('industry, vendors, active_vendors, sites');
 
   const sources = (source ?? '').split(',').filter(Boolean);
+  const addedBys = (addedBy ?? '').split(',').filter(Boolean);
 
   let rows = (data ?? []) as Row[];
+  // Every name currently in use, regardless of what's filtered right now —
+  // same reasoning as Source's fixed option list: the filter's own choices
+  // should not shrink just because another filter narrowed the rows.
+  const addedByOptions = [...new Set(rows.map(r => r.added_by_name).filter((x): x is string => !!x))].sort();
+
   if (q) {
     const needle = q.toLowerCase();
     rows = rows.filter(r =>
       `${r.legal_name} ${r.gstin ?? ''} ${r.site_code} ${r.legacy_vendor_code ?? ''} ${r.services_text ?? ''}`.toLowerCase().includes(needle));
   }
   if (sources.length) rows = rows.filter(r => !!r.source && sources.includes(r.source));
+  if (addedBys.length) rows = rows.filter(r => !!r.added_by_name && addedBys.includes(r.added_by_name));
   if (sort === 'name_asc' || sort === 'name_desc') {
     const dir = sort === 'name_asc' ? 1 : -1;
     rows = [...rows].sort((a, b) => dir * a.legal_name.localeCompare(b.legal_name));
@@ -100,6 +107,7 @@ export default async function VendorsPage({
     if (industry) params.set('industry', industry);
     if (state) params.set('state', state);
     if (source) params.set('source', source);
+    if (addedBy) params.set('addedBy', addedBy);
     params.set('sort', next);
     return `/vendors?${params.toString()}`;
   };
@@ -115,6 +123,7 @@ export default async function VendorsPage({
     if (industry) params.set('industry', industry);
     if (state) params.set('state', state);
     if (source) params.set('source', source);
+    if (addedBy) params.set('addedBy', addedBy);
     if (sort) params.set('sort', sort);
     params.set('page', String(p));
     return `/vendors?${params.toString()}`;
@@ -123,12 +132,13 @@ export default async function VendorsPage({
   if (sort) clearParams.set('sort', sort);
   const clearHref = clearParams.toString() ? `/vendors?${clearParams.toString()}` : '/vendors';
 
-  // Export respects whatever filter is currently applied — same q/industry/state/source.
+  // Export respects whatever filter is currently applied — same q/industry/state/source/addedBy.
   const exportParams = new URLSearchParams();
   if (q) exportParams.set('q', q);
   if (industry) exportParams.set('industry', industry);
   if (state) exportParams.set('state', state);
   if (source) exportParams.set('source', source);
+  if (addedBy) exportParams.set('addedBy', addedBy);
 
   // Service category — fetched only for the 20 rows actually shown, not the
   // whole filtered set, since nothing else on this page needs it.
@@ -216,7 +226,8 @@ export default async function VendorsPage({
                 <th>Industry / service</th><th>State (by GST)</th>
                 <th>Documents</th><th>Completeness</th>
                 <th>
-                  <SourceFilter selected={sources} q={q} industry={industry} state={state} sort={sort} />
+                  <SourceFilter selected={sources} selectedAddedBy={addedBys} addedByOptions={addedByOptions}
+                                q={q} industry={industry} state={state} sort={sort} />
                 </th>
                 <th></th>
               </tr>
@@ -274,7 +285,7 @@ export default async function VendorsPage({
                     </td>
                     <td className="text-[13px]">
                       {r.source ? SOURCE_LABEL[r.source] ?? r.source : '—'}
-                      {(r.source === 'manual' || r.source === 'public_form') && r.added_by_name && (
+                      {r.added_by_name && (
                         <div className="text-[11.5px]" style={{ color: 'var(--faint)' }}>
                           Added by {r.added_by_name}
                         </div>

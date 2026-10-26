@@ -2,6 +2,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createClient, getMe } from '@/lib/supabase/server';
+import { INDUSTRIES } from '@/lib/constants';
 
 export type FormState = { error?: string; ok?: string };
 
@@ -28,7 +29,7 @@ export async function createRequirement(_prev: FormState, formData: FormData): P
   const neededBy = String(formData.get('needed_by') ?? '').trim();
 
   if (!title) return { error: 'Give the requirement a title.' };
-  if (!['recycling', 'packaging', 'transportation', 'warehouse'].includes(industry))
+  if (!INDUSTRIES.some(i => i.code === industry))
     return { error: 'Choose an industry type.' };
 
   const supabase = await createClient();
