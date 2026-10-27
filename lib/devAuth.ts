@@ -43,6 +43,7 @@ export const DEV_PROFILE = {
   email: null,
   role: 'super_admin' as const,
   is_active: true,
+  can_edit_vendor_industry: true,
 };
 
 /** Explains the current state in one line, for the banner and for errors. */

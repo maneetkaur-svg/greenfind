@@ -38,10 +38,12 @@ export async function saveSection(
   for (const f of section.fields) {
     if (f.type === 'readonly') continue;
     // Super-Admin-only fields: never take a value from this submission unless
-    // the signed-in user actually is one — a disabled control submits
-    // nothing, which would otherwise read as "clear it". The database
-    // enforces this rule too (see sql/09_industry_super_admin_only.sql).
-    if (f.superAdminOnly && me.role !== 'super_admin') continue;
+    // the signed-in user actually is one, or holds the named per-person
+    // exception (sql/51_industry_edit_exception.sql) — a disabled control
+    // submits nothing, which would otherwise read as "clear it". The
+    // database enforces this rule too (see sql/09_industry_super_admin_only.sql
+    // and guard_industry_change()).
+    if (f.superAdminOnly && me.role !== 'super_admin' && !me.can_edit_vendor_industry) continue;
     values[f.key] = coerce(f.type, formData.get(f.key));
   }
 

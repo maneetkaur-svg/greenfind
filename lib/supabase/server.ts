@@ -1,6 +1,7 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { createClient as createDirectClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
+import { cache } from 'react';
 import { DEV_AUTH_BYPASS, DEV_PROFILE, devMode } from '@/lib/devAuth';
 import { getDevSessionClient } from './devSession';
 
@@ -12,6 +13,10 @@ export type Profile = {
   email: string | null;
   role: 'super_admin' | 'operations' | 'user';
   is_active: boolean;
+  // A named, per-person carve-out — not a role — for the one thing changing
+  // a vendor's industry normally requires super_admin for. See
+  // sql/51_industry_edit_exception.sql and guard_industry_change().
+  can_edit_vendor_industry: boolean;
 };
 
 export async function createClient() {
@@ -67,8 +72,11 @@ export async function createClient() {
 }
 
 /** The signed-in user with their profile row.
- *  No profile row means no permissions at all — that is deliberate. */
-export async function getMe(): Promise<Profile | null> {
+ *  No profile row means no permissions at all — that is deliberate.
+ *  Wrapped in React's per-request cache: the layout and the page both call
+ *  this, and without caching that meant auth.getUser() plus the profile
+ *  query ran twice on every navigation — two extra round trips for free. */
+export const getMe = cache(async (): Promise<Profile | null> => {
   // In service mode there is no real user, so a stand-in is the only option.
   // In session mode the real profile is read, which means the real role is
   // used and role restrictions behave as they will in production.
@@ -79,9 +87,9 @@ export async function getMe(): Promise<Profile | null> {
   if (!user) return null;
   const { data: profile } = await supabase
     .from('profile')
-    .select('id, full_name, email, role, is_active')
+    .select('id, full_name, email, role, is_active, can_edit_vendor_industry')
     .eq('id', user.id)
     .single();
   if (!profile || !profile.is_active) return null;
   return profile as Profile;
-}
+});
