@@ -3,7 +3,8 @@ import { createClient, getMe } from '@/lib/supabase/server';
 import { vendorTier, TIER_LABEL } from '@/lib/vendorTier';
 
 const SOURCE_LABEL: Record<string, string> = {
-  import: 'Import', manual: 'Internal', public_form: 'External', old_portal: 'Old GreenFind Portal',
+  import: 'Import', manual: 'Internal', public_form: 'External',
+  public_form_full: 'External (complete form)', old_portal: 'Old GreenFind Portal',
 };
 
 type Row = {

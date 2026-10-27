@@ -205,6 +205,9 @@ export default function OnboardForm({ cats }: { cats: Cat[] }) {
           Fill in the form below to register as a GreenFind vendor. Our team reviews every
           submission and connects verified vendors with clients whose requirements match what
           you already do — real work, not just a listing. Everything marked <span className="req">*</span> is required.
+          {' '}Want to submit everything in one sitting instead — banking, certificates, every
+          document — rather than have our team follow up for it? Use the{' '}
+          <a href="/onboard/full" style={{ color: 'var(--p600)', fontWeight: 600 }}>complete onboarding form</a>.
         </p>
       </div>
 

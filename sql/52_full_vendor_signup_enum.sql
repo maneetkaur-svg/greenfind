@@ -1,0 +1,13 @@
+-- Standalone on purpose -- see sql/13_add_warehouse_industry.sql and
+-- sql/46_add_scrap_trading_industry.sql for the same rule: a new enum value
+-- cannot be used (cast, default, insert literal) in the same transaction
+-- that adds it. This file must commit by itself before
+-- sql/53_full_vendor_signup.sql, which inserts rows with this value, can run.
+--
+-- Distinguishes a "Complete Vendor Onboarding" submission (every section,
+-- every detail, filled in by the vendor themselves) from the existing
+-- "Vendor sign-up" quick form (source = 'public_form' -- a handful of fields,
+-- enough to start a conversation). Both land as status = 'pending' and are
+-- reviewed the same way; this only exists so Source filters/analytics/exports
+-- can tell the two apart (see sql/53's SOURCE_LABEL-equivalent app changes).
+alter type vendor_source add value if not exists 'public_form_full';

@@ -19,7 +19,8 @@ type Row = {
 };
 
 const SOURCE_LABEL: Record<string, string> = {
-  import: 'Import', manual: 'Internal', public_form: 'External', old_portal: 'Old GreenFind Portal',
+  import: 'Import', manual: 'Internal', public_form: 'External',
+  public_form_full: 'External (complete form)', old_portal: 'Old GreenFind Portal',
 };
 const INDUSTRY_ICON: Record<string, string> = {
   recycling: '♻️', transportation: '🚚', packaging: '📦', warehouse: '🏭', scrap_trading: '🔩',

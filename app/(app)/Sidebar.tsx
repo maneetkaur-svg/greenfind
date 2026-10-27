@@ -47,10 +47,14 @@ export default function Sidebar({ isSuperAdmin, showActivity }: { isSuperAdmin: 
               Adoption & Usage
             </Link>
           )}
-          <div className="mt-2 pt-2 border-t" style={{ borderColor: 'var(--line)' }}>
+          <div className="mt-2 pt-2 border-t flex flex-col gap-1" style={{ borderColor: 'var(--line)' }}>
             <Link href="/onboard" target="_blank" rel="noopener noreferrer"
                   className="nav-tab" style={{ fontSize: 12.5 }}>
-              Vendor sign-up link ↗
+              Quick sign-up link ↗
+            </Link>
+            <Link href="/onboard/full" target="_blank" rel="noopener noreferrer"
+                  className="nav-tab" style={{ fontSize: 12.5 }}>
+              Complete onboarding link ↗
             </Link>
           </div>
         </nav>
