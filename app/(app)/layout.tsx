@@ -7,6 +7,7 @@ import { DEV_AUTH_BYPASS } from '@/lib/devAuth';
 import DevBanner from './DevBanner';
 import Sidebar from './Sidebar';
 import NavProgress from './NavProgress';
+import ThemeToggle from '@/app/ThemeToggle';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const me = await getMe();
@@ -49,6 +50,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 </button>
               </form>
             )}
+            <ThemeToggle />
           </div>
         </div>
       </header>
