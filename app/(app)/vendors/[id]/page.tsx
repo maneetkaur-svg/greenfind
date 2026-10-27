@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 import { createClient, getMe } from '@/lib/supabase/server';
 import { sectionsFor } from '@/lib/schema';
 import { INDUSTRIES } from '@/lib/constants';
+import { vendorTier, TIER_LABEL, TIER_CHIP_CLASS } from '@/lib/vendorTier';
 import SectionForm from './SectionForm';
 import ContactsForm from './ContactsForm';
 import GeographyForm from './GeographyForm';
@@ -69,7 +70,8 @@ async function VendorRecord({
 
   const [{ data: company, error: eCompany }, { data: contacts, error: eContacts },
          { data: ops, error: eOps }, { data: certs, error: eCerts },
-         { data: geo, error: eGeo }, { data: siblings, error: eSiblings }] = await Promise.all([
+         { data: geo, error: eGeo }, { data: siblings, error: eSiblings },
+         { data: tierRow, error: eTier }] = await Promise.all([
     supabase.from('company').select('*').eq('id', site.company_id).single(),
     supabase.from('site_contact').select('*').eq('site_id', id).order('rank'),
     supabase.from('site_operations').select('*').eq('site_id', id).maybeSingle(),
@@ -77,6 +79,10 @@ async function VendorRecord({
     supabase.from('site_geography').select('state').eq('site_id', id),
     supabase.from('vendor_site').select('id, site_code, legacy_vendor_code, city, state')
       .eq('company_id', site.company_id).is('deleted_at', null).order('site_code'),
+    // Same core_complete/banking_complete site_summary computes for the
+    // master list — read from there rather than recomputed here, so this
+    // page's tag can never drift from what the list shows for this vendor.
+    supabase.from('site_summary').select('core_complete, banking_complete').eq('id', id).maybeSingle(),
   ]);
 
   const [{ data: docRows, error: eDocs }, { data: reqRows, error: eReq }] = await Promise.all([
@@ -149,6 +155,7 @@ async function VendorRecord({
     ['certificate data', eCerts], ['geography', eGeo], ['sibling sites', eSiblings],
     ['documents', eDocs], ['document rules', eReq], ['service categories', eCats],
     ['selected categories', eSelCats], ['selected sub-categories', eSelSubs],
+    ['status', eTier],
   ] as [string, { message: string } | null][])
     .filter(([, e]) => e)
     .map(([name, e]) => `${name}: ${e!.message}`);
@@ -216,9 +223,9 @@ async function VendorRecord({
           </p>
         </div>
         <div className="flex gap-2 items-center">
-          {site.status && (
-            <span className={`chip ${site.status === 'active' ? 'c-g' : site.status === 'blocked' ? 'c-r' : 'c-a'}`}>
-              {String(site.status).toUpperCase()}
+          {tierRow && (
+            <span className={`chip ${TIER_CHIP_CLASS[vendorTier(tierRow.core_complete, tierRow.banking_complete)]}`}>
+              {TIER_LABEL[vendorTier(tierRow.core_complete, tierRow.banking_complete)].toUpperCase()}
             </span>
           )}
           {readOnly && <span className="chip c-a">READ ONLY</span>}

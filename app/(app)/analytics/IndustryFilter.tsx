@@ -5,7 +5,9 @@ import { INDUSTRIES } from '@/lib/constants';
 /** Same pattern as the vendor list's industry picker — a <details> disclosure
  *  acting as a zero-extra-state multi-select, driven entirely by the URL so
  *  the filter survives a refresh and can be shared as a link. */
-export default function IndustryFilter({ selected }: { selected: string[] }) {
+export default function IndustryFilter({
+  selected, source, tier, poc,
+}: { selected: string[]; source?: string; tier?: string; poc?: string }) {
   const router = useRouter();
 
   const label = selected.length === 0 ? 'All industries'
@@ -13,10 +15,16 @@ export default function IndustryFilter({ selected }: { selected: string[] }) {
       ? (selected[0] === 'unclassified' ? 'Others' : INDUSTRIES.find(i => i.code === selected[0])?.label ?? selected[0])
       : `${selected.length} industries`;
 
+  const go = (next: string[]) => {
+    const params = new URLSearchParams();
+    if (next.length) params.set('industry', next.join(','));
+    if (source) params.set('source', source);
+    if (tier) params.set('tier', tier);
+    if (poc) params.set('poc', poc);
+    router.push(`/analytics?${params.toString()}`);
+  };
   const toggle = (code: string) => {
-    const next = selected.includes(code) ? selected.filter(x => x !== code) : [...selected, code];
-    const qs = next.length ? `?industry=${next.join(',')}` : '';
-    router.push(`/analytics${qs}`);
+    go(selected.includes(code) ? selected.filter(x => x !== code) : [...selected, code]);
   };
 
   return (
@@ -36,7 +44,7 @@ export default function IndustryFilter({ selected }: { selected: string[] }) {
         {selected.length > 0 && (
           <button type="button" className="text-[12px] font-semibold mt-2 pt-2 border-t"
                   style={{ color: 'var(--p600)', borderColor: 'var(--line)' }}
-                  onClick={() => router.push('/analytics')}>
+                  onClick={() => go([])}>
             Clear filter
           </button>
         )}

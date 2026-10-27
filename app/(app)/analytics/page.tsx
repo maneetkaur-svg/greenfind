@@ -1,19 +1,21 @@
 import { redirect } from 'next/navigation';
 import { createClient, getMe } from '@/lib/supabase/server';
 import { INDUSTRIES } from '@/lib/constants';
+import { vendorTier, TIER_LABEL, type VendorTier } from '@/lib/vendorTier';
 import IndustryFilter from './IndustryFilter';
+import SourceFilter from './SourceFilter';
+import TierFilter from './TierFilter';
+import PocSearch from './PocSearch';
 
 const SOURCE_LABEL: Record<string, string> = {
-  import: 'Bulk / legacy import', manual: 'Manual (staff Add Vendor)', public_form: 'Public sign-up form',
-};
-const STATUS_LABEL: Record<string, string> = {
-  active: 'Active', pending: 'Pending', inactive: 'Inactive', blocked: 'Blocked',
+  import: 'Bulk / legacy import', manual: 'Manual (staff Add Vendor)', public_form: 'Public sign-up form', old_portal: 'Old GreenFind Portal',
 };
 const INDUSTRY_LABEL: Record<string, string> = Object.fromEntries(INDUSTRIES.map(i => [i.code, i.label]));
 
 type Site = {
-  id: string; company_id: string; industry: string | null; status: string; source: string | null;
+  id: string; company_id: string; industry: string | null; source: string | null;
   docs_attached: number; docs_required: number; is_msme: boolean; msme_category: string | null;
+  core_complete: boolean; banking_complete: boolean;
 };
 type Company = {
   id: string; entity: string | null; year_established: number | null;
@@ -24,33 +26,43 @@ type Company = {
 const pct = (n: number, total: number) => total ? Math.round((n / total) * 100) : 0;
 
 /** Live numbers, pulled fresh on every load — nothing here is a cached
- *  export. Two tiers below the headline figures: gaps the portal already
- *  blocks on, which should be close to zero, and gaps the portal only asks
- *  about without enforcing, which is why these counts are not zero. */
+ *  export. Vendor status is the Onboarded / Unverified / Verified tier
+ *  (see vendor_status_schema.xlsx and sql/50_vendor_tier_schema.sql) —
+ *  Completeness and Active/Inactive are gone from here, same as the master
+ *  list and the vendor record page. Two tiers below the headline figures:
+ *  gaps the portal already blocks on, which should be close to zero, and
+ *  gaps the portal only asks about without enforcing, which is why these
+ *  counts are not zero. */
 export default async function AnalyticsPage({
   searchParams,
-}: { searchParams: Promise<{ industry?: string }> }) {
+}: { searchParams: Promise<{ industry?: string; source?: string; tier?: string; poc?: string }> }) {
   const me = await getMe();
   if (!me) redirect('/login');
   if (me.role !== 'super_admin') redirect('/vendors');
   const supabase = await createClient();
 
-  const { industry: industryParam } = await searchParams;
+  const { industry: industryParam, source: sourceParam, tier: tierParam, poc } = await searchParams;
   const industries = (industryParam ?? '').split(',').filter(Boolean);
   const realIndustries = industries.filter(i => i !== 'unclassified');
   const wantsUnclassified = industries.includes('unclassified');
+  const sources = (sourceParam ?? '').split(',').filter(Boolean);
+  const tiers = (tierParam ?? '').split(',').filter(Boolean) as VendorTier[];
+  const pocNeedle = (poc ?? '').trim().toLowerCase();
 
   let sitesQuery = supabase
     .from('site_summary')
-    .select('id, company_id, industry, status, source, docs_attached, docs_required, is_msme, msme_category');
+    .select('id, company_id, industry, source, docs_attached, docs_required, is_msme, msme_category, core_complete, banking_complete');
   if (industries.length) {
     if (wantsUnclassified && realIndustries.length)
       sitesQuery = sitesQuery.or(`industry.is.null,industry.in.(${realIndustries.join(',')})`);
     else if (wantsUnclassified) sitesQuery = sitesQuery.is('industry', null);
     else sitesQuery = sitesQuery.in('industry', realIndustries);
   }
+  if (sources.length) sitesQuery = sitesQuery.in('source', sources);
   const { data: sitesRaw, error: sitesErr } = await sitesQuery;
-  const sites = (sitesRaw ?? []) as Site[];
+  let sites = (sitesRaw ?? []) as Site[];
+  if (tiers.length) sites = sites.filter(s => tiers.includes(vendorTier(s.core_complete, s.banking_complete)));
+
   const siteIds = sites.map(s => s.id);
   const companyIds = [...new Set(sites.map(s => s.company_id))];
 
@@ -59,8 +71,8 @@ export default async function AnalyticsPage({
       ? supabase.from('company').select('id, entity, year_established, authorised_signatory, cheque_on_file, udyam_number, trade_name').in('id', companyIds)
       : Promise.resolve({ data: [] as Company[] }),
     siteIds.length
-      ? supabase.from('site_contact').select('site_id, rank, designation, email').in('site_id', siteIds).in('rank', [1, 2])
-      : Promise.resolve({ data: [] as { site_id: string; rank: number; designation: string | null; email: string | null }[] }),
+      ? supabase.from('site_contact').select('site_id, rank, name, designation, email').in('site_id', siteIds).in('rank', [1, 2])
+      : Promise.resolve({ data: [] as { site_id: string; rank: number; name: string | null; designation: string | null; email: string | null }[] }),
     siteIds.length
       ? supabase.from('site_service_category').select('site_id').in('site_id', siteIds)
       : Promise.resolve({ data: [] as { site_id: string }[] }),
@@ -74,7 +86,15 @@ export default async function AnalyticsPage({
   const companyById = new Map((companiesRaw ?? []).map(c => [c.id, c as Company]));
 
   const contactGapSites = new Set<string>();
-  for (const c of (contactsRaw ?? [])) if (!c.designation || !c.email) contactGapSites.add(c.site_id);
+  const primaryContactName = new Map<string, string>();
+  for (const c of (contactsRaw ?? [])) {
+    if (!c.designation || !c.email) contactGapSites.add(c.site_id);
+    if (c.rank === 1 && c.name) primaryContactName.set(c.site_id, c.name);
+  }
+
+  if (pocNeedle) {
+    sites = sites.filter(s => (primaryContactName.get(s.id) ?? '').toLowerCase().includes(pocNeedle));
+  }
 
   const sitesWithCategory = new Set((catsRaw ?? []).map(c => c.site_id));
 
@@ -103,22 +123,23 @@ export default async function AnalyticsPage({
   }
 
   const total = sites.length;
-  const isDocsComplete = (s: Site) => s.docs_required === 0 || s.docs_attached >= s.docs_required;
-  const docsComplete = sites.filter(isDocsComplete).length;
 
-  const byStatus = new Map<string, number>();
-  for (const s of sites) byStatus.set(s.status, (byStatus.get(s.status) ?? 0) + 1);
+  const byTier = new Map<VendorTier, number>([['onboarded', 0], ['unverified', 0], ['verified', 0]]);
+  for (const s of sites) {
+    const t = vendorTier(s.core_complete, s.banking_complete);
+    byTier.set(t, (byTier.get(t) ?? 0) + 1);
+  }
 
   const bySource = new Map<string, number>();
   for (const s of sites) { const k = s.source ?? 'unknown'; bySource.set(k, (bySource.get(k) ?? 0) + 1); }
 
-  const byIndustry = new Map<string, { total: number; complete: number }>();
+  const byIndustryTier = new Map<string, Record<VendorTier, number> & { total: number }>();
   for (const s of sites) {
     const k = s.industry ?? 'Unclassified';
-    const row = byIndustry.get(k) ?? { total: 0, complete: 0 };
+    const row = byIndustryTier.get(k) ?? { onboarded: 0, unverified: 0, verified: 0, total: 0 };
+    row[vendorTier(s.core_complete, s.banking_complete)]++;
     row.total++;
-    if (isDocsComplete(s)) row.complete++;
-    byIndustry.set(k, row);
+    byIndustryTier.set(k, row);
   }
 
   let entityBlank = 0, msmeIncomplete = 0, yearBlank = 0, signatoryBlank = 0, chequeFalse = 0, tradeNameBlank = 0;
@@ -133,7 +154,7 @@ export default async function AnalyticsPage({
     if (!c.trade_name) tradeNameBlank++;
   }
   const zeroCategories = sites.filter(s => !sitesWithCategory.has(s.id)).length;
-  const contactGapCount = contactGapSites.size;
+  const contactGapCount = sites.filter(s => contactGapSites.has(s.id)).length;
 
   const Metric = ({ label, value, note }: { label: string; value: number | string; note?: string }) => (
     <div className="card p-4">
@@ -161,40 +182,24 @@ export default async function AnalyticsPage({
     <>
       <h1 className="text-[26px] font-bold mt-2 mb-1">Analytics</h1>
       <p className="text-[13.5px] mb-4" style={{ color: 'var(--faint)' }}>
-        Vendor onboarding and data-completeness, computed fresh from the database on every load.
+        Vendor onboarding status and data-completeness, computed fresh from the database on every load.
       </p>
 
-      <div className="flex items-center gap-3 mb-6">
-        <IndustryFilter selected={industries} />
-        {industries.length > 0 && (
-          <span className="text-[12.5px]" style={{ color: 'var(--faint)' }}>
-            Showing {industries.map(i => i === 'unclassified' ? 'Others' : (INDUSTRY_LABEL[i] ?? i)).join(', ')} only
-          </span>
-        )}
+      <div className="flex items-center gap-3 mb-6 flex-wrap">
+        <IndustryFilter selected={industries} source={sourceParam} tier={tierParam} poc={poc} />
+        <SourceFilter selected={sources} industry={industryParam} tier={tierParam} poc={poc} />
+        <TierFilter selected={tiers} industry={industryParam} source={sourceParam} poc={poc} />
+        <PocSearch value={poc} industry={industryParam} source={sourceParam} tier={tierParam} />
       </div>
 
       {sitesErr && <div className="note r mb-5"><b>Could not read vendor data.</b> {sitesErr.message}</div>}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
-        <Metric label="Vendors onboarded" value={total} />
-        <Metric label="Active" value={byStatus.get('active') ?? 0} note={`${pct(byStatus.get('active') ?? 0, total)}% of total`} />
-        <Metric label="Documents complete" value={docsComplete} note={`${pct(docsComplete, total)}% of vendors`} />
-        <Metric label="Documents incomplete" value={total - docsComplete} note={`${pct(total - docsComplete, total)}% of vendors`} />
+        <Metric label="Total Vendors" value={total} />
+        <Metric label="Onboarded" value={byTier.get('onboarded') ?? 0} note={`${pct(byTier.get('onboarded') ?? 0, total)}% of total`} />
+        <Metric label="Unverified" value={byTier.get('unverified') ?? 0} note={`${pct(byTier.get('unverified') ?? 0, total)}% of total`} />
+        <Metric label="Verified" value={byTier.get('verified') ?? 0} note={`${pct(byTier.get('verified') ?? 0, total)}% of total`} />
       </div>
-
-      <Section title="Status breakdown">
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[...byStatus.entries()].sort((a, b) => b[1] - a[1]).map(([k, n]) => (
-            <div key={k}>
-              <div className="flex justify-between text-[13px]">
-                <span style={{ color: 'var(--head)' }}>{STATUS_LABEL[k] ?? k}</span>
-                <span className="font-bold">{n} · {pct(n, total)}%</span>
-              </div>
-              <Bar n={n} total={total} />
-            </div>
-          ))}
-        </div>
-      </Section>
 
       <Section title="Onboarded from">
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -210,25 +215,25 @@ export default async function AnalyticsPage({
         </div>
       </Section>
 
-      <Section title="By industry — document completeness">
+      <Section title="By industry — status breakdown">
         <table className="w-full text-[13px]">
           <thead>
             <tr style={{ color: 'var(--faint)' }}>
               <th className="text-left font-bold pb-2">Industry</th>
-              <th className="text-right font-bold pb-2">Vendors</th>
-              <th className="text-right font-bold pb-2">Docs complete</th>
-              <th className="text-right font-bold pb-2">Docs incomplete</th>
-              <th className="text-right font-bold pb-2">% complete</th>
+              <th className="text-right font-bold pb-2">Onboarded</th>
+              <th className="text-right font-bold pb-2">Unverified</th>
+              <th className="text-right font-bold pb-2">Verified</th>
+              <th className="text-right font-bold pb-2">Total</th>
             </tr>
           </thead>
           <tbody>
-            {[...byIndustry.entries()].sort((a, b) => b[1].total - a[1].total).map(([k, row]) => (
+            {[...byIndustryTier.entries()].sort((a, b) => b[1].total - a[1].total).map(([k, row]) => (
               <tr key={k} className="border-t" style={{ borderColor: 'var(--line)' }}>
                 <td className="py-2">{INDUSTRY_LABEL[k] ?? k}</td>
-                <td className="py-2 text-right">{row.total}</td>
-                <td className="py-2 text-right">{row.complete}</td>
-                <td className="py-2 text-right">{row.total - row.complete}</td>
-                <td className="py-2 text-right font-bold">{pct(row.complete, row.total)}%</td>
+                <td className="py-2 text-right">{row.onboarded}</td>
+                <td className="py-2 text-right">{row.unverified}</td>
+                <td className="py-2 text-right">{row.verified}</td>
+                <td className="py-2 text-right font-bold">{row.total}</td>
               </tr>
             ))}
           </tbody>
