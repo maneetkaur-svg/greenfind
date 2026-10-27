@@ -5,6 +5,7 @@ const SOURCES: [string, string][] = [
   ['import', 'Import'],
   ['manual', 'Internal'],
   ['public_form', 'External'],
+  ['public_form_full', 'External (complete form)'],
   ['old_portal', 'Old GreenFind Portal'],
 ];
 

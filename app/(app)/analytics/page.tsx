@@ -8,7 +8,8 @@ import TierFilter from './TierFilter';
 import PocSearch from './PocSearch';
 
 const SOURCE_LABEL: Record<string, string> = {
-  import: 'Bulk / legacy import', manual: 'Manual (staff Add Vendor)', public_form: 'Public sign-up form', old_portal: 'Old GreenFind Portal',
+  import: 'Bulk / legacy import', manual: 'Manual (staff Add Vendor)', public_form: 'Public sign-up form',
+  public_form_full: 'Public complete onboarding form', old_portal: 'Old GreenFind Portal',
 };
 const INDUSTRY_LABEL: Record<string, string> = Object.fromEntries(INDUSTRIES.map(i => [i.code, i.label]));
 
