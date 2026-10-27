@@ -3,15 +3,13 @@ import { revalidatePath } from 'next/cache';
 import { after } from 'next/server';
 import { createClient, getMe } from '@/lib/supabase/server';
 import { extractEntityFromCertificate } from '@/lib/entityFromCertificate';
+import { fileValidationError } from '@/lib/fileUpload';
 
 export type DocState = { error?: string; ok?: string };
 
 // Runs fully in the background (after()) — never on the critical path of
 // an upload. Flip to false to stop the Gemini call from happening at all.
 const GST_ENTITY_EXTRACTION_ENABLED = true;
-
-const MAX = 10 * 1024 * 1024;
-const OK_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
 
 /** Uploads the file to Storage, then records it. Replacing a document
  *  supersedes the previous row rather than overwriting it, so the
@@ -29,12 +27,8 @@ export async function uploadDocument(
 
   if (!siteId || !docType) return { error: 'Something is missing from the form.' };
   if (!file || file.size === 0) return { error: 'Choose a file first.' };
-  if (file.size > MAX)
-    return { error: `That file is ${(file.size / 1048576).toFixed(1)} MB. The limit is 10 MB.` };
-
-  const ext = (file.name.split('.').pop() ?? '').toLowerCase();
-  if (!OK_TYPES.includes(file.type) && !['pdf', 'jpg', 'jpeg', 'png'].includes(ext))
-    return { error: 'Only PDF, JPG and PNG are accepted.' };
+  const fileErr = fileValidationError(file);
+  if (fileErr) return { error: fileErr };
 
   const supabase = await createClient();
   const safe = file.name.replace(/[^A-Za-z0-9._-]/g, '_');

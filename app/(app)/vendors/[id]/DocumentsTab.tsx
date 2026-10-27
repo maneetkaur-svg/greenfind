@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useActionState, useEffect, useState } from 'react';
 import { uploadDocument, removeDocument, getDownloadUrl,
          type DocState } from './documentActions';
+import { fileValidationError } from '@/lib/fileUpload';
 import SubmitButton from '@/app/SubmitButton';
 
 export type DocType = {
@@ -41,6 +42,19 @@ export default function DocumentsTab({
   const [state, action] = useActionState<DocState, FormData>(uploadDocument, {});
   const [open, setOpen] = useState<string | null>(null);
   const [addingExtra, setAddingExtra] = useState(false);
+  const [fileErr, setFileErr] = useState('');
+
+  // Caught here, before the form ever submits, a file this big never
+  // reaches the server at all — past a certain size it would otherwise hit
+  // Next's own request-body limit first, which fails as a hard error page
+  // instead of this plain message.
+  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) { setFileErr(''); return; }
+    const err = fileValidationError(f);
+    setFileErr(err ?? '');
+    if (err) e.target.value = '';
+  };
 
   // Only collapse the "Anything else" form on an actual, confirmed success —
   // it used to close on submit itself (onSubmit), which hid the file picker
@@ -188,7 +202,9 @@ export default function DocumentsTab({
                   <div className={t.expiry_tracked ? '' : 'md:col-span-2'}>
                     <label className="lab" htmlFor={`f_${t.code}`}>File</label>
                     <input id={`f_${t.code}`} name="file" type="file" required
-                           accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*" />
+                           accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*"
+                           onChange={onFileChange} />
+                    {fileErr && <div className="err mt-1">{fileErr}</div>}
                   </div>
                   <div>
                     <label className="lab" htmlFor={`n_${t.code}`}>Document number</label>
@@ -269,7 +285,9 @@ export default function DocumentsTab({
               <div>
                 <label className="lab" htmlFor="extra_file">File</label>
                 <input id="extra_file" name="file" type="file" required
-                       accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*" />
+                       accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*"
+                       onChange={onFileChange} />
+                {fileErr && <div className="err mt-1">{fileErr}</div>}
               </div>
             </div>
             <div className="flex gap-3 mt-4">
