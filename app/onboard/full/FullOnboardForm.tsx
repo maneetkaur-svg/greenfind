@@ -185,23 +185,30 @@ export default function FullOnboardForm({ cats, docRules }: { cats: Cat[]; docRu
         <div className="grid md:grid-cols-3 gap-4">
           <div className={d.expiry_tracked ? '' : 'md:col-span-2'}>
             <label className="lab" htmlFor={`f_${d.code}`}>File</label>
-            <input id={`f_${d.code}`} type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*"
-                   onChange={e => {
-                     const f = e.target.files?.[0];
-                     if (f) {
-                       const err = fileValidationError(f);
-                       setFileErrors(p => ({ ...p, [d.code]: err ?? '' }));
-                       if (err) { e.target.value = ''; return; }
-                     } else {
-                       setFileErrors(p => ({ ...p, [d.code]: '' }));
-                     }
-                     setFiles(p => {
-                       const n = { ...p };
-                       if (f) n[d.code] = { file: f, number: p[d.code]?.number ?? '', validUntil: p[d.code]?.validUntil ?? '' };
-                       else delete n[d.code];
-                       return n;
-                     });
-                   }} />
+            <label className="file-drop" htmlFor={`f_${d.code}`}>
+              <div className="file-drop-icon">📄</div>
+              <div className="file-drop-label">{chosen ? chosen.file.name : 'Click to upload a file'}</div>
+              <div className="file-drop-sub">
+                {chosen ? `${(chosen.file.size / 1024).toFixed(0)} KB — click to replace` : 'PDF, JPG or PNG · up to 10 MB'}
+              </div>
+              <input id={`f_${d.code}`} type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*" className="sr-only"
+                     onChange={e => {
+                       const f = e.target.files?.[0];
+                       if (f) {
+                         const err = fileValidationError(f);
+                         setFileErrors(p => ({ ...p, [d.code]: err ?? '' }));
+                         if (err) { e.target.value = ''; return; }
+                       } else {
+                         setFileErrors(p => ({ ...p, [d.code]: '' }));
+                       }
+                       setFiles(p => {
+                         const n = { ...p };
+                         if (f) n[d.code] = { file: f, number: p[d.code]?.number ?? '', validUntil: p[d.code]?.validUntil ?? '' };
+                         else delete n[d.code];
+                         return n;
+                       });
+                     }} />
+            </label>
             {fileErrors[d.code] && <div className="err mt-1">{fileErrors[d.code]}</div>}
           </div>
           <div>
@@ -218,9 +225,6 @@ export default function FullOnboardForm({ cats, docRules }: { cats: Cat[]; docRu
             </div>
           )}
         </div>
-        {chosen && (
-          <div className="hint mt-2">{chosen.file.name} · {(chosen.file.size / 1024).toFixed(0)} KB, ready to upload</div>
-        )}
       </div>
     );
   };
@@ -699,19 +703,30 @@ export default function FullOnboardForm({ cats, docRules }: { cats: Cat[]; docRu
                     </div>
                     <div>
                       <label className="lab">File</label>
-                      <input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*"
-                             onChange={e => {
-                               const f = e.target.files?.[0] ?? null;
-                               if (f) {
-                                 const err = fileValidationError(f);
-                                 setFileErrors(p => ({ ...p, extra: err ?? '' }));
-                                 if (err) { e.target.value = ''; return; }
-                               } else setFileErrors(p => ({ ...p, extra: '' }));
-                               setExtraFiles(p => {
-                                 const rest = p.filter(x => x.id !== 'draft');
-                                 return [...rest, { id: 'draft', label: p.find(x => x.id === 'draft')?.label ?? '', file: f }];
-                               });
-                             }} />
+                      <label className="file-drop">
+                        <div className="file-drop-icon">📄</div>
+                        <div className="file-drop-label">
+                          {extraFiles.find(x => x.id === 'draft')?.file ? extraFiles.find(x => x.id === 'draft')!.file!.name : 'Click to upload a file'}
+                        </div>
+                        <div className="file-drop-sub">
+                          {extraFiles.find(x => x.id === 'draft')?.file
+                            ? `${(extraFiles.find(x => x.id === 'draft')!.file!.size / 1024).toFixed(0)} KB — click to replace`
+                            : 'PDF, JPG or PNG · up to 10 MB'}
+                        </div>
+                        <input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*" className="sr-only"
+                               onChange={e => {
+                                 const f = e.target.files?.[0] ?? null;
+                                 if (f) {
+                                   const err = fileValidationError(f);
+                                   setFileErrors(p => ({ ...p, extra: err ?? '' }));
+                                   if (err) { e.target.value = ''; return; }
+                                 } else setFileErrors(p => ({ ...p, extra: '' }));
+                                 setExtraFiles(p => {
+                                   const rest = p.filter(x => x.id !== 'draft');
+                                   return [...rest, { id: 'draft', label: p.find(x => x.id === 'draft')?.label ?? '', file: f }];
+                                 });
+                               }} />
+                      </label>
                       {fileErrors.extra && <div className="err mt-1">{fileErrors.extra}</div>}
                     </div>
                     <div className="md:col-span-3 flex gap-3">
