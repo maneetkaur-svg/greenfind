@@ -9,7 +9,28 @@
   --err:#EF4444; --err-l:#FEF2F2; --warn:#EAB308; --warn-l:#FEFCE8; --warn-d:#713F12;
 }
 
-body { background: var(--bg); color: var(--text); font-family: "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif; }
+/* Dark mode — same green brand accent throughout (--p500 is untouched), only
+   the neutral surface/text/border scale inverts. Toggled by ThemeToggle.tsx
+   setting data-theme on <html>; every color elsewhere in this file already
+   goes through one of these variables, so nothing else needs to change. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --p500:#05A070; --p600:#2DD4A6; --p700:#4ADE80; --p50:#0E2B22; --p100:#15382C;
+  --bg:#0D1412; --surface:#141E1A; --surface-2:#1B2621;
+  --text:#CBD3CE; --head:#F1F5F2; --muted:#9FADA6; --faint:#74837B;
+  --line:#26332C; --line-2:#35443B;
+  --err:#F87171; --err-l:#3B1517; --warn:#FBBF24; --warn-l:#332B0C; --warn-d:#FDE68A;
+}
+:root[data-theme="dark"] .c-r { color: #FCA5A5; }
+:root[data-theme="dark"] .icon-green  { background: #113B22; color: #4ADE80; }
+:root[data-theme="dark"] .icon-blue   { background: #122A42; color: #7FB0F5; }
+:root[data-theme="dark"] .icon-purple { background: #2A1F42; color: #C4A4F7; }
+:root[data-theme="dark"] .icon-orange { background: #402C10; color: #F5B15C; }
+:root[data-theme="dark"] .icon-teal   { background: #10332F; color: #5FD0C7; }
+:root[data-theme="dark"] .icon-grey   { background: #262E36; color: #A9B4C0; }
+:root[data-theme="dark"] .icon-amber  { background: #3A2A10; color: #F0B458; }
+
+body { background: var(--bg); color: var(--text); font-family: "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif; transition: background-color .15s, color .15s; }
 h1,h2,h3,h4 { color: var(--head); letter-spacing: -.02em; }
 
 .card    { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
