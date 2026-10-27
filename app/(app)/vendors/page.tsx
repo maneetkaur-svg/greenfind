@@ -5,22 +5,18 @@ import DashboardCard, { type DashRow } from './DashboardCard';
 import SearchForm from './SearchForm';
 import RowLink from './RowLink';
 import SourceFilter from './SourceFilter';
+import { vendorTier, TIER_LABEL, TIER_CHIP_CLASS } from '@/lib/vendorTier';
 
 type Row = {
   id: string; site_code: string; legal_name: string;
   gstin: string | null; industry: string | null; state: string | null; city: string | null;
-  status: string | null; legacy_vendor_code: string | null; services_text: string | null;
+  legacy_vendor_code: string | null; services_text: string | null;
   aadhaar_last4: string | null; source: string | null; added_by_name: string | null;
   company_id: string; company_code: string; sibling_sites: number;
   docs_attached: number; docs_verified: number; docs_required: number;
+  core_complete: boolean; banking_complete: boolean;
   has_pending_request: boolean; updated_at: string;
 };
-
-function status(r: Row) {
-  if (r.docs_required > 0 && r.docs_attached >= r.docs_required) return ['c-g', 'COMPLETE'];
-  if (r.docs_attached === 0) return ['c-r', 'NO DOCUMENTS'];
-  return ['c-a', 'INCOMPLETE'];
-}
 
 const SOURCE_LABEL: Record<string, string> = {
   import: 'Import', manual: 'Internal', public_form: 'External', old_portal: 'Old GreenFind Portal',
@@ -224,7 +220,7 @@ export default async function VendorsPage({
                   </Link>
                 </th>
                 <th>Industry / service</th><th>State (by GST)</th>
-                <th>Documents</th><th>Completeness</th>
+                <th>Documents</th><th>Status</th>
                 <th>
                   <SourceFilter selected={sources} selectedAddedBy={addedBys} addedByOptions={addedByOptions}
                                 q={q} industry={industry} state={state} sort={sort} />
@@ -234,7 +230,7 @@ export default async function VendorsPage({
             </thead>
             <tbody>
               {pageRows.map(r => {
-                const [cls, label] = status(r);
+                const tier = vendorTier(r.core_complete, r.banking_complete);
                 const icon = INDUSTRY_ICON[r.industry ?? ''];
                 const services = servicesBySite.get(r.id);
                 return (
@@ -278,7 +274,7 @@ export default async function VendorsPage({
                       <div className="text-[11.5px]" style={{ color: 'var(--faint)' }}>attached</div>
                     </td>
                     <td>
-                      <span className={`chip ${cls}`}>{label}</span>
+                      <span className={`chip ${TIER_CHIP_CLASS[tier]}`}>{TIER_LABEL[tier].toUpperCase()}</span>
                       {r.has_pending_request && (
                         <span className="chip c-a ml-1">REQUEST OPEN</span>
                       )}

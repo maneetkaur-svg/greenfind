@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, getMe } from '@/lib/supabase/server';
+import { vendorTier, TIER_LABEL } from '@/lib/vendorTier';
 
 const SOURCE_LABEL: Record<string, string> = {
   import: 'Import', manual: 'Internal', public_form: 'External', old_portal: 'Old GreenFind Portal',
@@ -8,8 +9,8 @@ const SOURCE_LABEL: Record<string, string> = {
 type Row = {
   site_code: string; legacy_vendor_code: string | null; legal_name: string;
   gstin: string | null; industry: string | null; services_text: string | null;
-  state: string | null; city: string | null; status: string | null; source: string | null;
-  added_by_name: string | null; docs_attached: number; docs_required: number;
+  state: string | null; city: string | null; source: string | null;
+  added_by_name: string | null; core_complete: boolean; banking_complete: boolean;
 };
 
 function csvCell(v: unknown): string {
@@ -40,7 +41,7 @@ export async function GET(request: NextRequest) {
 
   const supabase = await createClient();
   let query = supabase.from('site_summary').select(
-    'site_code, legacy_vendor_code, legal_name, gstin, industry, services_text, state, city, status, source, added_by_name, docs_attached, docs_required'
+    'site_code, legacy_vendor_code, legal_name, gstin, industry, services_text, state, city, source, added_by_name, core_complete, banking_complete'
   ).order('updated_at', { ascending: false });
 
   if (industries.length) {
@@ -64,15 +65,13 @@ export async function GET(request: NextRequest) {
   if (sources.length) rows = rows.filter(r => !!r.source && sources.includes(r.source));
   if (addedBys.length) rows = rows.filter(r => !!r.added_by_name && addedBys.includes(r.added_by_name));
 
-  const header = ['Site Code', 'Legacy Code', 'Vendor', 'GSTIN', 'Industry', 'State', 'City', 'Status', 'Source', 'Added By', 'Documents', 'Completeness'];
+  const header = ['Site Code', 'Legacy Code', 'Vendor', 'GSTIN', 'Industry', 'State', 'City', 'Source', 'Added By', 'Status'];
   const body = rows.map(r => [
     r.site_code, r.legacy_vendor_code ?? '', r.legal_name, r.gstin ?? '',
-    r.industry ?? 'Unclassified', r.state ?? '', r.city ?? '', r.status ?? '',
+    r.industry ?? 'Unclassified', r.state ?? '', r.city ?? '',
     r.source ? (SOURCE_LABEL[r.source] ?? r.source) : '',
     r.added_by_name ?? '',
-    `${r.docs_attached}/${r.docs_required}`,
-    r.docs_required > 0 && r.docs_attached >= r.docs_required ? 'Complete'
-      : r.docs_attached === 0 ? 'No documents' : 'Incomplete',
+    TIER_LABEL[vendorTier(r.core_complete, r.banking_complete)],
   ]);
 
   const bom = '﻿';
