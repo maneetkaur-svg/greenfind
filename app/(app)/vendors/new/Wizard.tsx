@@ -124,7 +124,7 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
     list.push({ id: 'commercial', label: 'Commercials' });
     list.push({ id: 'banking', label: 'Payments and Banking' });
     list.push({ id: 'agreements', label: 'Agreements' });
-    if (industry === 'recycling') {
+    if (industry === 'recycling' || industry === 'scrap_trading') {
       list.push({ id: 'cto', label: 'Consent to Operate' });
       list.push({ id: 'epr', label: 'EPR registration' });
     }
