@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { useActionState, useState } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 import { uploadDocument, removeDocument, getDownloadUrl,
          type DocState } from './documentActions';
 import SubmitButton from '@/app/SubmitButton';
@@ -41,6 +41,16 @@ export default function DocumentsTab({
   const [state, action] = useActionState<DocState, FormData>(uploadDocument, {});
   const [open, setOpen] = useState<string | null>(null);
   const [addingExtra, setAddingExtra] = useState(false);
+
+  // Only collapse the "Anything else" form on an actual, confirmed success —
+  // it used to close on submit itself (onSubmit), which hid the file picker
+  // the instant the button was clicked, win or lose. A failed upload left
+  // only the top-of-page error to notice, with the form that caused it
+  // already gone, and no record of a successful "other" upload ever
+  // existing (checked directly) backs up that this was actually failing.
+  useEffect(() => {
+    if (state.ok) setAddingExtra(false);
+  }, [state.ok]);
 
   const have = (code: string) => docs.find(d => d.doc_type === code);
   const required = types.filter(t => t.level === 'required' && t.uploaded_by_party === 'vendor');
@@ -247,8 +257,7 @@ export default function DocumentsTab({
         ))}
 
         {addingExtra && !readOnly && (
-          <form action={action} className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--line)' }}
-                onSubmit={() => setAddingExtra(false)}>
+          <form action={action} className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--line)' }}>
             <input type="hidden" name="site_id" value={siteId} />
             <input type="hidden" name="doc_type" value="other" />
             <div className="grid md:grid-cols-3 gap-4">
