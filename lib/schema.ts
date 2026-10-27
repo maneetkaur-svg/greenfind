@@ -209,7 +209,7 @@ export const SECTIONS: Section[] = [
     label: 'Consent to Operate',
     table: 'site_certificate_data',
     blurb: 'Read off the CTO.',
-    industries: ['recycling'],
+    industries: ['recycling', 'scrap_trading'],
     fields: [
       { key: 'cto_order_no', label: 'CTO number', type: 'text', max: 60, half: true },
       { key: 'cto_valid_from', label: 'Valid from', type: 'date', half: true },
@@ -221,7 +221,7 @@ export const SECTIONS: Section[] = [
     label: 'EPR registration',
     table: 'site_certificate_data',
     blurb: 'Read off the EPR or PWP registration certificate.',
-    industries: ['recycling'],
+    industries: ['recycling', 'scrap_trading'],
     fields: [
       { key: 'epr_reg_no', label: 'Registration number', type: 'text', max: 60,
         placeholder: 'PR-31-RAJ-05-AYEPP3943P-24',
