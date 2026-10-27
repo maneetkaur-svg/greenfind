@@ -1,6 +1,7 @@
 'use client';
 import { useActionState, useState } from 'react';
 import { uploadDocument, removeDocument, getDownloadUrl, type DocState } from './documentActions';
+import { fileValidationError } from '@/lib/fileUpload';
 import SubmitButton from '@/app/SubmitButton';
 
 export type ExistingDoc = {
@@ -24,6 +25,20 @@ export default function InlineDocUpload({
 }) {
   const [state, action] = useActionState<DocState, FormData>(uploadDocument, {});
   const [open, setOpen] = useState(false);
+  const [fileErr, setFileErr] = useState('');
+
+  // Caught here, before the form ever submits, a file this big never
+  // reaches the server at all — past a certain size it would otherwise hit
+  // Next's own request-body limit first, which fails as a hard error page
+  // instead of this plain message. Clearing the input also means the
+  // file[input] required attribute blocks submission on its own.
+  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) { setFileErr(''); return; }
+    const err = fileValidationError(f);
+    setFileErr(err ?? '');
+    if (err) e.target.value = '';
+  };
 
   const view = async (path: string) => {
     const url = await getDownloadUrl(path);
@@ -80,7 +95,9 @@ export default function InlineDocUpload({
             <div className={expiryTracked ? '' : 'md:col-span-2'}>
               <label className="lab" htmlFor={`idu_f_${docType}`}>File</label>
               <input id={`idu_f_${docType}`} name="file" type="file" required
-                     accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*" />
+                     accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*"
+                     onChange={onFileChange} />
+              {fileErr && <div className="err mt-1">{fileErr}</div>}
             </div>
             <div>
               <label className="lab" htmlFor={`idu_n_${docType}`}>Document number</label>

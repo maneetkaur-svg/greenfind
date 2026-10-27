@@ -2,6 +2,7 @@
 import { useActionState, useState } from 'react';
 import { uploadDocument, removeDocument, getDownloadUrl, type DocState }
   from './documentActions';
+import { fileValidationError } from '@/lib/fileUpload';
 import SubmitButton from '@/app/SubmitButton';
 
 export type SignedNda = {
@@ -17,6 +18,15 @@ export default function NdaPanel({
 }: { siteId: string; signed: SignedNda; signatory: string | null; readOnly: boolean }) {
   const [state, action] = useActionState<DocState, FormData>(uploadDocument, {});
   const [open, setOpen] = useState(false);
+  const [fileErr, setFileErr] = useState('');
+
+  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) { setFileErr(''); return; }
+    const err = fileValidationError(f);
+    setFileErr(err ?? '');
+    if (err) e.target.value = '';
+  };
 
   const view = async (path: string) => {
     const url = await getDownloadUrl(path);
@@ -90,7 +100,9 @@ export default function NdaPanel({
             <input type="hidden" name="doc_type" value="nda" />
             <label className="lab" htmlFor="nda_file">Signed NDA</label>
             <input id="nda_file" name="file" type="file" required
-                   accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*" />
+                   accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*"
+                   onChange={onFileChange} />
+            {fileErr && <div className="err mt-1">{fileErr}</div>}
             <div className="flex gap-3 mt-4">
               <SubmitButton pendingText="Uploading…">Attach</SubmitButton>
               <button type="button" className="btn btn-o" onClick={() => setOpen(false)}>

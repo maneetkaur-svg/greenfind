@@ -8,6 +8,7 @@ import { SECTIONS, type Field } from '@/lib/schema';
 import { REGIONS, STATES, RX, panFromGstin, stateFromGstin } from '@/lib/constants';
 import { createVendor, lookupCompany, type LookupResult } from './actions';
 import { uploadDocument } from '../[id]/documentActions';
+import { fileValidationError } from '@/lib/fileUpload';
 
 export type Cat = { id: string; industry: string; code: string; label: string;
                     subs: { id: string; label: string }[] };
@@ -46,6 +47,11 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [files, setFiles] = useState<Record<string, Pending>>({});
+  // Keyed the same way files is — a file this big never reaches the server
+  // at all, past a certain size it would otherwise hit Next's own request-
+  // body limit first (a hard error page, not a clear message), since
+  // uploadDocument here is called the same way a <form action> would be.
+  const [fileErrors, setFileErrors] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState('');
   const [customIndustryMode, setCustomIndustryMode] = useState(false);
   const [customIndustryText, setCustomIndustryText] = useState('');
@@ -170,6 +176,13 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
                    accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*"
                    onChange={e => {
                      const f = e.target.files?.[0];
+                     if (f) {
+                       const err = fileValidationError(f);
+                       setFileErrors(p => ({ ...p, [d.code]: err ?? '' }));
+                       if (err) { e.target.value = ''; return; }
+                     } else {
+                       setFileErrors(p => ({ ...p, [d.code]: '' }));
+                     }
                      setFiles(p => {
                        const n = { ...p };
                        if (f) n[d.code] = { file: f, number: p[d.code]?.number ?? '', validUntil: p[d.code]?.validUntil ?? '' };
@@ -177,6 +190,7 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
                        return n;
                      });
                    }} />
+            {fileErrors[d.code] && <div className="err mt-1">{fileErrors[d.code]}</div>}
           </div>
           <div>
             <label className="lab" htmlFor={`wn_${d.code}`}>Document number</label>
@@ -835,11 +849,19 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
                       <input id="extra_file" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*"
                              onChange={e => {
                                const f = e.target.files?.[0] ?? null;
+                               if (f) {
+                                 const err = fileValidationError(f);
+                                 setFileErrors(p => ({ ...p, extra: err ?? '' }));
+                                 if (err) { e.target.value = ''; return; }
+                               } else {
+                                 setFileErrors(p => ({ ...p, extra: '' }));
+                               }
                                setExtraFiles(p => {
                                  const rest = p.filter(x => x.id !== 'draft');
                                  return [...rest, { id: 'draft', label: p.find(x => x.id === 'draft')?.label ?? '', file: f }];
                                });
                              }} />
+                      {fileErrors.extra && <div className="err mt-1">{fileErrors.extra}</div>}
                     </div>
                     <div className="md:col-span-3 flex gap-3">
                       <button type="button" className="btn btn-p"
