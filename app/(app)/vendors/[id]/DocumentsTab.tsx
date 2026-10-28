@@ -128,7 +128,7 @@ export default function DocumentsTab({
       )}
 
       <p className="text-[13.5px] mb-4" style={{ color: 'var(--faint)' }}>
-        Only what applies to this industry is listed. PDF, JPG or PNG, up to 10 MB.
+        Only what applies to this industry is listed. PDF, JPG or PNG, up to 4 MB.
       </p>
 
       {otherTypes.map(t => {

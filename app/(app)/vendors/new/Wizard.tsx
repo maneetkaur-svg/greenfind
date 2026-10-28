@@ -772,7 +772,7 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
               <p className="text-[13.5px] mb-4" style={{ color: 'var(--faint)' }}>
                 Most documents were already asked for on the step they belong to —
                 here is where things stand, plus anything extra. Nothing here blocks
-                creating the vendor. PDF, JPG or PNG, up to 10 MB each.
+                creating the vendor. PDF, JPG or PNG, up to 4 MB each.
               </p>
 
               {docs.filter(d => CONTEXTUAL_DOC_CODES.includes(d.code)).length > 0 && (

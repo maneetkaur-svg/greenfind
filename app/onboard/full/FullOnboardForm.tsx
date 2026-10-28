@@ -189,7 +189,7 @@ export default function FullOnboardForm({ cats, docRules }: { cats: Cat[]; docRu
               <div className="file-drop-icon">📄</div>
               <div className="file-drop-label">{chosen ? chosen.file.name : 'Click to upload a file'}</div>
               <div className="file-drop-sub">
-                {chosen ? `${(chosen.file.size / 1024).toFixed(0)} KB — click to replace` : 'PDF, JPG or PNG · up to 10 MB'}
+                {chosen ? `${(chosen.file.size / 1024).toFixed(0)} KB — click to replace` : 'PDF, JPG or PNG · up to 4 MB'}
               </div>
               <input id={`f_${d.code}`} type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*" className="sr-only"
                      onChange={e => {
@@ -667,7 +667,7 @@ export default function FullOnboardForm({ cats, docRules }: { cats: Cat[]; docRu
             <>
               <p className="text-[13.5px] mb-4" style={{ color: 'var(--faint)' }}>
                 Most documents were already asked for on the section they belong to — here is
-                anything left, plus anything extra. PDF, JPG or PNG, up to 10 MB each.
+                anything left, plus anything extra. PDF, JPG or PNG, up to 4 MB each.
               </p>
               {docs.filter(d => !CONTEXTUAL_DOC_CODES.includes(d.code)).map(d => renderDocCard(d.code))}
 
@@ -711,7 +711,7 @@ export default function FullOnboardForm({ cats, docRules }: { cats: Cat[]; docRu
                         <div className="file-drop-sub">
                           {extraFiles.find(x => x.id === 'draft')?.file
                             ? `${(extraFiles.find(x => x.id === 'draft')!.file!.size / 1024).toFixed(0)} KB — click to replace`
-                            : 'PDF, JPG or PNG · up to 10 MB'}
+                            : 'PDF, JPG or PNG · up to 4 MB'}
                         </div>
                         <input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*" className="sr-only"
                                onChange={e => {

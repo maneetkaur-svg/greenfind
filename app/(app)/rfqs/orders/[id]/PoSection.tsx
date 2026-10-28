@@ -1,6 +1,7 @@
 'use client';
 import { useActionState, useState } from 'react';
 import { createPurchaseOrder, markPoSent, markPoSigned, type FormState } from '../../actions';
+import { fileValidationError } from '@/lib/fileUpload';
 import SubmitButton from '@/app/SubmitButton';
 
 export type Po = {
@@ -13,6 +14,7 @@ export default function PoSection({
 }: { rfqId: string; siteId: string; quotedPrice: number; po: Po | null }) {
   const [signState, signAction] = useActionState<FormState, FormData>(markPoSigned, {});
   const [amount, setAmount] = useState(String(quotedPrice));
+  const [fileErr, setFileErr] = useState('');
 
   if (!po) {
     return (
@@ -67,11 +69,19 @@ export default function PoSection({
             Once the vendor signs and returns it, upload the signed copy (optional) and mark it signed.
           </p>
           <div className="flex gap-2 items-center flex-wrap">
-            <input type="file" name="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*" />
+            <input type="file" name="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*"
+                   onChange={e => {
+                     const f = e.target.files?.[0];
+                     if (!f) { setFileErr(''); return; }
+                     const err = fileValidationError(f);
+                     setFileErr(err ?? '');
+                     if (err) e.target.value = '';
+                   }} />
             <SubmitButton className="btn btn-o" pendingText="Saving…" style={{ padding: '6px 12px', fontSize: 13 }}>
               Mark signed
             </SubmitButton>
           </div>
+          {fileErr && <div className="err mt-1">{fileErr}</div>}
         </form>
       )}
 
