@@ -3,9 +3,6 @@ import { redirect } from 'next/navigation';
 import { createClient, getMe } from '@/lib/supabase/server';
 import { INDUSTRIES } from '@/lib/constants';
 import { vendorTier, TIER_LABEL, type VendorTier } from '@/lib/vendorTier';
-import IndustryFilter from './IndustryFilter';
-import SourceFilter from './SourceFilter';
-import TierFilter from './TierFilter';
 import PocSearch from './PocSearch';
 
 const SOURCE_LABEL: Record<string, string> = {
@@ -212,13 +209,11 @@ export default async function AnalyticsPage({
         <div>
           <h1 className="text-[24px] font-bold mt-1 mb-0.5">Analytics</h1>
           <p className="text-[13px]" style={{ color: 'var(--faint)' }}>
-            Vendor onboarding status, computed fresh from the database. Click any tile to filter.
+            Vendor onboarding status, computed fresh from the database. Click any tile below
+            to filter by industry, source or status — search by contact name here.
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <IndustryFilter selected={industries} source={sourceParam} tier={tierParam} poc={poc} />
-          <SourceFilter selected={sources} industry={industryParam} tier={tierParam} poc={poc} />
-          <TierFilter selected={tiers} industry={industryParam} source={sourceParam} poc={poc} />
           <PocSearch value={poc} industry={industryParam} source={sourceParam} tier={tierParam} />
           {(industries.length > 0 || sources.length > 0 || tiers.length > 0 || !!poc) && (
             <Link href="/analytics" className="text-[12.5px] font-semibold" style={{ color: 'var(--faint)' }}>
