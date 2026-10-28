@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient, getMe } from '@/lib/supabase/server';
 import { INDUSTRIES } from '@/lib/constants';
@@ -11,7 +12,20 @@ const SOURCE_LABEL: Record<string, string> = {
   import: 'Bulk / legacy import', manual: 'Manual (staff Add Vendor)', public_form: 'Public sign-up form',
   public_form_full: 'Public complete onboarding form', old_portal: 'Old GreenFind Portal',
 };
+const SOURCE_SHORT: Record<string, string> = {
+  import: 'Import', manual: 'Internal', public_form: 'Quick sign-up',
+  public_form_full: 'Complete onboarding', old_portal: 'Old portal',
+};
 const INDUSTRY_LABEL: Record<string, string> = Object.fromEntries(INDUSTRIES.map(i => [i.code, i.label]));
+const INDUSTRY_ICON: Record<string, string> = {
+  recycling: '♻️', transportation: '🚚', packaging: '📦', warehouse: '🏭', scrap_trading: '🔩',
+};
+// The same solid tier colors used for chips (TIER_CHIP_CLASS) elsewhere in
+// the app — c-a (amber), c-n (grey), c-g (green) — just as a bar fill rather
+// than a pale chip background, so a vendor's status reads the same color
+// wherever it shows up.
+const TIER_FILL: Record<VendorTier, string> = { onboarded: 'var(--warn)', unverified: 'var(--line-2)', verified: 'var(--p500)' };
+const TIER_ICON: Record<VendorTier, string> = { onboarded: '◐', unverified: '◑', verified: '●' };
 
 type Site = {
   id: string; company_id: string; industry: string | null; source: string | null;
@@ -26,14 +40,15 @@ type Company = {
 
 const pct = (n: number, total: number) => total ? Math.round((n / total) * 100) : 0;
 
-/** Live numbers, pulled fresh on every load — nothing here is a cached
- *  export. Vendor status is the Onboarded / Unverified / Verified tier
- *  (see vendor_status_schema.xlsx and sql/50_vendor_tier_schema.sql) —
- *  Completeness and Active/Inactive are gone from here, same as the master
- *  list and the vendor record page. Two tiers below the headline figures:
- *  gaps the portal already blocks on, which should be close to zero, and
- *  gaps the portal only asks about without enforcing, which is why these
- *  counts are not zero. */
+/** Live numbers, pulled fresh on every load. Vendor status is the Onboarded /
+ *  Unverified / Verified tier (see vendor_status_schema.xlsx and
+ *  sql/50_vendor_tier_schema.sql). One screen, tile-first: the headline
+ *  tiles and every industry/source tile are themselves the filter controls
+ *  (click one the same way the vendor list's dashboard tiles work) — the
+ *  dropdowns above exist for the cases a tile can't cover (Source needs its
+ *  own control too since there are more values than fit as tiles cleanly,
+ *  and POC is free-text search). Document/data-quality detail that would
+ *  otherwise make this scroll lives in one collapsed panel at the bottom. */
 export default async function AnalyticsPage({
   searchParams,
 }: { searchParams: Promise<{ industry?: string; source?: string; tier?: string; poc?: string }> }) {
@@ -136,12 +151,16 @@ export default async function AnalyticsPage({
 
   const byIndustryTier = new Map<string, Record<VendorTier, number> & { total: number }>();
   for (const s of sites) {
-    const k = s.industry ?? 'Unclassified';
+    const k = s.industry ?? 'unclassified';
     const row = byIndustryTier.get(k) ?? { onboarded: 0, unverified: 0, verified: 0, total: 0 };
     row[vendorTier(s.core_complete, s.banking_complete)]++;
     row.total++;
     byIndustryTier.set(k, row);
   }
+  // Every fixed industry shows even at zero, same reasoning as the vendor
+  // list's own dashboard (DashboardCard.tsx) — a brand-new industry with
+  // nothing in it yet is a real zero, not a missing tile.
+  const industryOrder = [...INDUSTRIES.map(i => i.code), 'unclassified'];
 
   let entityBlank = 0, msmeIncomplete = 0, yearBlank = 0, signatoryBlank = 0, chequeFalse = 0, tradeNameBlank = 0;
   for (const s of sites) {
@@ -157,154 +176,215 @@ export default async function AnalyticsPage({
   const zeroCategories = sites.filter(s => !sitesWithCategory.has(s.id)).length;
   const contactGapCount = sites.filter(s => contactGapSites.has(s.id)).length;
 
-  const Metric = ({ label, value, note }: { label: string; value: number | string; note?: string }) => (
-    <div className="card p-4">
-      <div className="text-[24px] font-bold leading-tight" style={{ color: 'var(--head)' }}>{value}</div>
-      <div className="text-[12.5px] font-bold mt-1" style={{ color: 'var(--head)' }}>{label}</div>
-      {note && <div className="text-[11.5px] mt-1" style={{ color: 'var(--faint)' }}>{note}</div>}
-    </div>
-  );
+  // Every tile below toggles one value into (or out of) its own filter array,
+  // carrying the other three filters over unchanged — same convention as
+  // the vendor list's dashboard tiles (vendors/DashboardCard.tsx).
+  const hrefFor = (next: { industry?: string[]; source?: string[]; tier?: string[] }) => {
+    const params = new URLSearchParams();
+    const i = next.industry ?? industries;
+    const s = next.source ?? sources;
+    const t = next.tier ?? tiers;
+    if (i.length) params.set('industry', i.join(','));
+    if (s.length) params.set('source', s.join(','));
+    if (t.length) params.set('tier', t.join(','));
+    if (poc) params.set('poc', poc);
+    const qs = params.toString();
+    return qs ? `/analytics?${qs}` : '/analytics';
+  };
+  const toggleTier = (t: VendorTier) =>
+    hrefFor({ tier: tiers.includes(t) ? tiers.filter(x => x !== t) : [...tiers, t] });
+  const toggleIndustry = (code: string) =>
+    hrefFor({ industry: industries.includes(code) ? industries.filter(x => x !== code) : [...industries, code] });
+  const toggleSource = (code: string) =>
+    hrefFor({ source: sources.includes(code) ? sources.filter(x => x !== code) : [...sources, code] });
 
-  const Section = ({ title, blurb, children }: { title: string; blurb?: string; children: React.ReactNode }) => (
-    <div className="card p-5 mb-5">
-      <h2 className="text-[15px] font-bold mb-1">{title}</h2>
-      {blurb && <p className="text-[12.5px] mb-4" style={{ color: 'var(--faint)' }}>{blurb}</p>}
-      {children}
-    </div>
-  );
-
-  const Bar = ({ n, total: t }: { n: number; total: number }) => (
-    <div className="h-[6px] rounded-full mt-1.5" style={{ background: 'var(--surface-2)' }}>
-      <div className="h-full rounded-full" style={{ width: `${pct(n, t)}%`, background: 'var(--p500)' }} />
+  const StackBar = ({ row }: { row: Record<VendorTier, number> & { total: number } }) => (
+    <div className="flex gap-[2px] h-[7px] rounded-full overflow-hidden mt-2" style={{ background: 'var(--surface-2)' }}>
+      {(['onboarded', 'unverified', 'verified'] as VendorTier[]).map(t => row[t] > 0 && (
+        <div key={t} style={{ width: `${pct(row[t], row.total)}%`, background: TIER_FILL[t] }} title={`${TIER_LABEL[t]}: ${row[t]}`} />
+      ))}
     </div>
   );
 
   return (
     <>
-      <h1 className="text-[26px] font-bold mt-2 mb-1">Analytics</h1>
-      <p className="text-[13.5px] mb-4" style={{ color: 'var(--faint)' }}>
-        Vendor onboarding status and data-completeness, computed fresh from the database on every load.
-      </p>
-
-      <div className="flex items-center gap-3 mb-6 flex-wrap">
-        <IndustryFilter selected={industries} source={sourceParam} tier={tierParam} poc={poc} />
-        <SourceFilter selected={sources} industry={industryParam} tier={tierParam} poc={poc} />
-        <TierFilter selected={tiers} industry={industryParam} source={sourceParam} poc={poc} />
-        <PocSearch value={poc} industry={industryParam} source={sourceParam} tier={tierParam} />
-      </div>
-
-      {sitesErr && <div className="note r mb-5"><b>Could not read vendor data.</b> {sitesErr.message}</div>}
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
-        <Metric label="Total Vendors" value={total} />
-        <Metric label="Onboarded" value={byTier.get('onboarded') ?? 0} note={`${pct(byTier.get('onboarded') ?? 0, total)}% of total`} />
-        <Metric label="Unverified" value={byTier.get('unverified') ?? 0} note={`${pct(byTier.get('unverified') ?? 0, total)}% of total`} />
-        <Metric label="Verified" value={byTier.get('verified') ?? 0} note={`${pct(byTier.get('verified') ?? 0, total)}% of total`} />
-      </div>
-
-      <Section title="Onboarded from">
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[...bySource.entries()].sort((a, b) => b[1] - a[1]).map(([k, n]) => (
-            <div key={k}>
-              <div className="flex justify-between text-[13px]">
-                <span style={{ color: 'var(--head)' }}>{SOURCE_LABEL[k] ?? k}</span>
-                <span className="font-bold">{n} · {pct(n, total)}%</span>
-              </div>
-              <Bar n={n} total={total} />
-            </div>
-          ))}
+      <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
+        <div>
+          <h1 className="text-[24px] font-bold mt-1 mb-0.5">Analytics</h1>
+          <p className="text-[13px]" style={{ color: 'var(--faint)' }}>
+            Vendor onboarding status, computed fresh from the database. Click any tile to filter.
+          </p>
         </div>
-      </Section>
+        <div className="flex items-center gap-2 flex-wrap">
+          <IndustryFilter selected={industries} source={sourceParam} tier={tierParam} poc={poc} />
+          <SourceFilter selected={sources} industry={industryParam} tier={tierParam} poc={poc} />
+          <TierFilter selected={tiers} industry={industryParam} source={sourceParam} poc={poc} />
+          <PocSearch value={poc} industry={industryParam} source={sourceParam} tier={tierParam} />
+          {(industries.length > 0 || sources.length > 0 || tiers.length > 0 || !!poc) && (
+            <Link href="/analytics" className="text-[12.5px] font-semibold" style={{ color: 'var(--faint)' }}>
+              Clear all
+            </Link>
+          )}
+        </div>
+      </div>
 
-      <Section title="By industry — status breakdown">
-        <table className="w-full text-[13px]">
-          <thead>
-            <tr style={{ color: 'var(--faint)' }}>
-              <th className="text-left font-bold pb-2">Industry</th>
-              <th className="text-right font-bold pb-2">Onboarded</th>
-              <th className="text-right font-bold pb-2">Unverified</th>
-              <th className="text-right font-bold pb-2">Verified</th>
-              <th className="text-right font-bold pb-2">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {[...byIndustryTier.entries()].sort((a, b) => b[1].total - a[1].total).map(([k, row]) => (
-              <tr key={k} className="border-t" style={{ borderColor: 'var(--line)' }}>
-                <td className="py-2">{INDUSTRY_LABEL[k] ?? k}</td>
-                <td className="py-2 text-right">{row.onboarded}</td>
-                <td className="py-2 text-right">{row.unverified}</td>
-                <td className="py-2 text-right">{row.verified}</td>
-                <td className="py-2 text-right font-bold">{row.total}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </Section>
+      {sitesErr && <div className="note r mb-4"><b>Could not read vendor data.</b> {sitesErr.message}</div>}
 
-      <Section title="Missing documents" blurb="Required documents not currently on file, counted across every vendor that needs each one.">
-        {missingDocCounts.size === 0 ? (
-          <p className="text-[13px]" style={{ color: 'var(--faint)' }}>Nothing missing.</p>
-        ) : (
-          <div className="grid sm:grid-cols-2 gap-4">
-            {[...missingDocCounts.entries()].sort((a, b) => b[1] - a[1]).map(([label, n]) => (
-              <div key={label}>
-                <div className="flex justify-between text-[13px]">
-                  <span style={{ color: 'var(--head)' }}>{label}</span>
-                  <span className="font-bold">{n} · {pct(n, total)}%</span>
+      {/* Headline — the four numbers that matter most, each a filter toggle. */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+        <div className="card metric-box p-4">
+          <div className="flex items-center gap-3">
+            <span className="icon-circle icon-green">🏢</span>
+            <div className="text-[28px] font-bold leading-tight">{total}</div>
+          </div>
+          <div className="text-[13px] font-bold mt-2" style={{ color: 'var(--head)' }}>Total Vendors</div>
+        </div>
+        {(['onboarded', 'unverified', 'verified'] as VendorTier[]).map(t => {
+          const on = tiers.includes(t);
+          const n = byTier.get(t) ?? 0;
+          return (
+            <Link key={t} href={toggleTier(t)}
+                  className={`card metric-box p-4 block ${on ? 'metric-box-selected' : ''}`}
+                  title={`${n} ${TIER_LABEL[t].toLowerCase()} · ${pct(n, total)}% — click to ${on ? 'remove from' : 'add to'} the filter`}>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-3">
+                  <span className="icon-circle" style={{ background: 'var(--surface-2)', color: TIER_FILL[t], fontSize: 20 }}>
+                    {TIER_ICON[t]}
+                  </span>
+                  <div className="text-[28px] font-bold leading-tight">{n}</div>
                 </div>
-                <Bar n={n} total={total} />
+                <span className="text-[12px] font-bold" style={{ color: 'var(--faint)' }}>{pct(n, total)}%</span>
+              </div>
+              <div className="text-[13px] font-bold mt-2" style={{ color: 'var(--head)' }}>{TIER_LABEL[t]}</div>
+            </Link>
+          );
+        })}
+      </div>
+
+      <div className="grid lg:grid-cols-[1fr_320px] gap-4 mb-4">
+        {/* By industry — one tile each, a status bar standing in for the table. */}
+        <div className="card p-4">
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <h2 className="text-[13px] font-bold" style={{ color: 'var(--head)' }}>By industry</h2>
+            <div className="flex items-center gap-3 text-[11px] font-semibold" style={{ color: 'var(--faint)' }}>
+              <span className="flex items-center gap-1.5"><span style={{ width: 8, height: 8, borderRadius: 2, background: TIER_FILL.onboarded, display: 'inline-block' }} />Onboarded</span>
+              <span className="flex items-center gap-1.5"><span style={{ width: 8, height: 8, borderRadius: 2, background: TIER_FILL.unverified, display: 'inline-block' }} />Unverified</span>
+              <span className="flex items-center gap-1.5"><span style={{ width: 8, height: 8, borderRadius: 2, background: TIER_FILL.verified, display: 'inline-block' }} />Verified</span>
+            </div>
+          </div>
+          <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
+            {industryOrder.map(code => {
+              const row = byIndustryTier.get(code) ?? { onboarded: 0, unverified: 0, verified: 0, total: 0 };
+              const on = industries.includes(code);
+              const label = code === 'unclassified' ? 'Others' : INDUSTRY_LABEL[code] ?? code;
+              return (
+                <Link key={code} href={toggleIndustry(code)}
+                      className={`card metric-box p-3 block ${on ? 'metric-box-selected' : ''}`}
+                      title={`${row.total} vendors — click to ${on ? 'remove from' : 'add to'} the filter`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-2 text-[13px] font-bold" style={{ color: 'var(--head)' }}>
+                      <span>{code === 'unclassified' ? '•••' : INDUSTRY_ICON[code]}</span>{label}
+                    </span>
+                    <span className="text-[16px] font-bold">{row.total}</span>
+                  </div>
+                  <StackBar row={row} />
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* By source — narrower column alongside, same tile pattern. */}
+        <div className="card p-4">
+          <h2 className="text-[13px] font-bold mb-3" style={{ color: 'var(--head)' }}>Onboarded from</h2>
+          <div className="flex flex-col gap-2">
+            {[...bySource.entries()].sort((a, b) => b[1] - a[1]).map(([k, n]) => {
+              const on = sources.includes(k);
+              return (
+                <Link key={k} href={toggleSource(k)}
+                      className={`card metric-box p-3 block ${on ? 'metric-box-selected' : ''}`}
+                      title={`${SOURCE_LABEL[k] ?? k} — click to ${on ? 'remove from' : 'add to'} the filter`}>
+                  <div className="flex items-center justify-between gap-2 text-[13px]">
+                    <span className="font-bold" style={{ color: 'var(--head)' }}>{SOURCE_SHORT[k] ?? k}</span>
+                    <span className="font-bold">{n} <span style={{ color: 'var(--faint)', fontWeight: 600 }}>· {pct(n, total)}%</span></span>
+                  </div>
+                  <div className="h-[6px] rounded-full mt-2" style={{ background: 'var(--surface-2)' }}>
+                    <div className="h-full rounded-full" style={{ width: `${pct(n, total)}%`, background: 'var(--p500)' }} />
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Data-quality gaps — collapsed by default so the dashboard above is
+          the whole view; the detail is one click away, not pre-scrolled. */}
+      <details className="card p-4">
+        <summary className="text-[13px] font-bold cursor-pointer" style={{ color: 'var(--head)', listStyle: 'none' }}>
+          Data quality details — missing documents and policy gaps
+          {missingDocCounts.size > 0 && <span className="chip c-a ml-2">{missingDocCounts.size} doc type{missingDocCounts.size === 1 ? '' : 's'} with gaps</span>}
+        </summary>
+
+        <div className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--line)' }}>
+          <h3 className="text-[12px] font-bold uppercase tracking-[.06em] mb-3" style={{ color: 'var(--faint)' }}>
+            Missing documents <span className="font-normal normal-case">— required, not currently on file</span>
+          </h3>
+          {missingDocCounts.size === 0 ? (
+            <p className="text-[13px] mb-4" style={{ color: 'var(--faint)' }}>Nothing missing.</p>
+          ) : (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-5">
+              {[...missingDocCounts.entries()].sort((a, b) => b[1] - a[1]).map(([label, n]) => (
+                <div key={label} className="card p-3">
+                  <div className="flex justify-between text-[13px]">
+                    <span style={{ color: 'var(--head)' }}>{label}</span>
+                    <span className="font-bold">{n} · {pct(n, total)}%</span>
+                  </div>
+                  <div className="h-[6px] rounded-full mt-2" style={{ background: 'var(--surface-2)' }}>
+                    <div className="h-full rounded-full" style={{ width: `${pct(n, total)}%`, background: 'var(--warn)' }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <h3 className="text-[12px] font-bold uppercase tracking-[.06em] mb-1" style={{ color: 'var(--faint)' }}>
+            Required by policy, not yet enforced by the portal
+          </h3>
+          <p className="text-[12px] mb-3" style={{ color: 'var(--faint)' }}>
+            The Vendor Master Form schema calls these mandatory, but the portal does not currently
+            block saving a vendor without them — so counts here will not be zero.
+          </p>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+            {[
+              ['Trade / brand name blank', tradeNameBlank],
+              ['Entity type blank', entityBlank],
+              ['MSME, but category/Udyam missing', msmeIncomplete],
+              ['Year established blank', yearBlank],
+              ['No service category picked', zeroCategories],
+              ['Contact missing designation or email', contactGapCount],
+              ['Authorised signatory blank', signatoryBlank],
+              ['Cancelled cheque not marked on file', chequeFalse],
+            ].map(([label, n]) => (
+              <div key={label as string} className="card p-3">
+                <div className="text-[13px]" style={{ color: 'var(--head)' }}>{label}</div>
+                <div className="flex items-baseline justify-between mt-1">
+                  <span className="text-[17px] font-bold">{n as number}</span>
+                  <span className="text-[11.5px] font-bold" style={{ color: 'var(--faint)' }}>{pct(n as number, total)}%</span>
+                </div>
               </div>
             ))}
           </div>
-        )}
-      </Section>
 
-      <Section title="Required by policy, not yet enforced by the portal"
-                blurb="The Vendor Master Form schema calls these mandatory, but the portal does not currently block saving a vendor without them — so counts here will not be zero.">
-        <div className="grid sm:grid-cols-2 gap-4">
-          <div>
-            <div className="flex justify-between text-[13px]"><span>Trade / brand name blank</span><span className="font-bold">{tradeNameBlank} · {pct(tradeNameBlank, total)}%</span></div>
-            <Bar n={tradeNameBlank} total={total} />
-          </div>
-          <div>
-            <div className="flex justify-between text-[13px]"><span>Entity type blank</span><span className="font-bold">{entityBlank} · {pct(entityBlank, total)}%</span></div>
-            <Bar n={entityBlank} total={total} />
-          </div>
-          <div>
-            <div className="flex justify-between text-[13px]"><span>MSME, but category/Udyam missing</span><span className="font-bold">{msmeIncomplete} · {pct(msmeIncomplete, total)}%</span></div>
-            <Bar n={msmeIncomplete} total={total} />
-          </div>
-          <div>
-            <div className="flex justify-between text-[13px]"><span>Year established blank</span><span className="font-bold">{yearBlank} · {pct(yearBlank, total)}%</span></div>
-            <Bar n={yearBlank} total={total} />
-          </div>
-          <div>
-            <div className="flex justify-between text-[13px]"><span>No service category picked</span><span className="font-bold">{zeroCategories} · {pct(zeroCategories, total)}%</span></div>
-            <Bar n={zeroCategories} total={total} />
-          </div>
-          <div>
-            <div className="flex justify-between text-[13px]"><span>Primary/secondary contact missing designation or email</span><span className="font-bold">{contactGapCount} · {pct(contactGapCount, total)}%</span></div>
-            <Bar n={contactGapCount} total={total} />
-          </div>
-          <div>
-            <div className="flex justify-between text-[13px]"><span>Authorised signatory blank</span><span className="font-bold">{signatoryBlank} · {pct(signatoryBlank, total)}%</span></div>
-            <Bar n={signatoryBlank} total={total} />
-          </div>
-          <div>
-            <div className="flex justify-between text-[13px]"><span>Cancelled cheque not marked on file</span><span className="font-bold">{chequeFalse} · {pct(chequeFalse, total)}%</span></div>
-            <Bar n={chequeFalse} total={total} />
-            <div className="hint mt-1">No screen sets this flag directly — only a bulk import carrying that column can.</div>
-          </div>
+          <h3 className="text-[12px] font-bold uppercase tracking-[.06em] mb-2" style={{ color: 'var(--faint)' }}>
+            Required by policy, not captured at all
+          </h3>
+          <ul className="ml-4 list-disc text-[13px]" style={{ color: 'var(--head)' }}>
+            <li>Geo-tagged image and Site Report (Physical Verification) — scoped, not yet built.</li>
+            <li>PAN / Aadhaar of the individual — only asked for Proprietorship; Partnership, LLP and Foreign entities are never asked.</li>
+          </ul>
         </div>
-      </Section>
-
-      <Section title="Required by policy, not captured at all"
-                blurb="These cannot be counted, because there is nowhere in the portal to enter them yet.">
-        <ul className="ml-4 list-disc text-[13px]" style={{ color: 'var(--head)' }}>
-          <li>Geo-tagged image and Site Report (Physical Verification) — scoped, not yet built.</li>
-          <li>PAN / Aadhaar of the individual — only asked for Proprietorship; Partnership, LLP and Foreign entities are never asked.</li>
-        </ul>
-      </Section>
+      </details>
     </>
   );
 }
