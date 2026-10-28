@@ -669,6 +669,33 @@ export default function FullOnboardForm({ cats, docRules }: { cats: Cat[]; docRu
                 Most documents were already asked for on the section they belong to — here is
                 anything left, plus anything extra. PDF, JPG or PNG, up to 10 MB each.
               </p>
+
+              {docs.filter(d => CONTEXTUAL_DOC_CODES.includes(d.code)).length > 0 && (
+                <div className="card p-4 mb-4" style={{ background: 'var(--surface-2)' }}>
+                  <div className="text-[11px] font-bold uppercase tracking-[.07em] mb-3"
+                       style={{ color: 'var(--faint)' }}>Already asked for, elsewhere in this form</div>
+                  <div className="grid gap-2">
+                    {docs.filter(d => CONTEXTUAL_DOC_CODES.includes(d.code)).map(d => {
+                      const ready = !!files[d.code];
+                      const stepId = d.code === 'gst' || d.code === 'pan' || d.code === 'udyam' ? 'identity'
+                        : d.code === 'cheque' ? 'banking' : d.code === 'nda' ? 'agreements' : d.code;
+                      return (
+                        <div key={d.code} className="flex items-center justify-between gap-3">
+                          <span className="text-[13px]" style={{ color: 'var(--head)' }}>
+                            {ready ? '✓ ' : '○ '}{d.label}
+                          </span>
+                          <button type="button" className="text-[12.5px] font-semibold"
+                                  style={{ color: 'var(--p600)' }}
+                                  onClick={() => go(steps.findIndex(s => s.id === stepId))}>
+                            {ready ? 'View' : 'Go add it'}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {docs.filter(d => !CONTEXTUAL_DOC_CODES.includes(d.code)).map(d => renderDocCard(d.code))}
 
               <div className="card p-4 mb-3">
