@@ -1,10 +1,9 @@
 'use client';
 import Link from 'next/link';
-import { useActionState, useEffect, useState } from 'react';
-import { uploadDocument, removeDocument, getDownloadUrl,
-         type DocState } from './documentActions';
-import { fileValidationError } from '@/lib/fileUpload';
-import SubmitButton from '@/app/SubmitButton';
+import { useState } from 'react';
+import { removeDocument, getDownloadUrl } from './documentActions';
+import { uploadStaffDocument, type DocState } from '@/lib/clientDocumentUpload';
+import { fileValidationError, MAX_FILE_BYTES_DIRECT } from '@/lib/fileUpload';
 
 export type DocType = {
   code: string; label: string; applies_to: string | null;
@@ -39,32 +38,41 @@ const daysLeft = (d: string | null) => {
 export default function DocumentsTab({
   types, docs, siteId, readOnly,
 }: { types: DocType[]; docs: DocRow[]; siteId: string; readOnly: boolean }) {
-  const [state, action] = useActionState<DocState, FormData>(uploadDocument, {});
+  const [state, setState] = useState<DocState>({});
+  const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
   const [addingExtra, setAddingExtra] = useState(false);
   const [fileErr, setFileErr] = useState('');
 
-  // Caught here, before the form ever submits, a file this big never
-  // reaches the server at all — past a certain size it would otherwise hit
-  // Next's own request-body limit first, which fails as a hard error page
-  // instead of this plain message.
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) { setFileErr(''); return; }
-    const err = fileValidationError(f);
+    const err = fileValidationError(f, MAX_FILE_BYTES_DIRECT);
     setFileErr(err ?? '');
     if (err) e.target.value = '';
   };
 
   // Only collapse the "Anything else" form on an actual, confirmed success —
-  // it used to close on submit itself (onSubmit), which hid the file picker
-  // the instant the button was clicked, win or lose. A failed upload left
-  // only the top-of-page error to notice, with the form that caused it
-  // already gone, and no record of a successful "other" upload ever
-  // existing (checked directly) backs up that this was actually failing.
-  useEffect(() => {
-    if (state.ok) setAddingExtra(false);
-  }, [state.ok]);
+  // it used to close on submit itself, which hid the file picker the
+  // instant the button was clicked, win or lose. A failed upload left only
+  // the top-of-page error to notice, with the form that caused it already
+  // gone, and no record of a successful "other" upload ever existing
+  // (checked directly) backs up that this was actually failing.
+  const handleUpload = async (e: React.FormEvent<HTMLFormElement>, docType: string) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const file = fd.get('file') as File | null;
+    if (!file || file.size === 0) { setState({ error: 'Choose a file first.' }); return; }
+    setBusy(true); setState({});
+    const result = await uploadStaffDocument({
+      siteId, docType, file,
+      docNumber: String(fd.get('doc_number') ?? '').trim() || undefined,
+      validUntil: String(fd.get('valid_until') ?? '').trim() || undefined,
+    });
+    setBusy(false);
+    setState(result);
+    if (result.ok && docType === 'other') setAddingExtra(false);
+  };
 
   const have = (code: string) => docs.find(d => d.doc_type === code);
   const required = types.filter(t => t.level === 'required' && t.uploaded_by_party === 'vendor');
@@ -128,7 +136,7 @@ export default function DocumentsTab({
       )}
 
       <p className="text-[13.5px] mb-4" style={{ color: 'var(--faint)' }}>
-        Only what applies to this industry is listed. PDF, JPG or PNG, up to 4 MB.
+        Only what applies to this industry is listed. PDF, JPG or PNG, up to 10 MB.
       </p>
 
       {otherTypes.map(t => {
@@ -194,10 +202,8 @@ export default function DocumentsTab({
             </div>
 
             {isOpen && !readOnly && (
-              <form action={action} className="mt-4 pt-4 border-t"
+              <form onSubmit={e => handleUpload(e, t.code)} className="mt-4 pt-4 border-t"
                     style={{ borderColor: 'var(--line)' }}>
-                <input type="hidden" name="site_id" value={siteId} />
-                <input type="hidden" name="doc_type" value={t.code} />
                 <div className="grid md:grid-cols-3 gap-4">
                   <div className={t.expiry_tracked ? '' : 'md:col-span-2'}>
                     <label className="lab" htmlFor={`f_${t.code}`}>File</label>
@@ -219,7 +225,10 @@ export default function DocumentsTab({
                   )}
                 </div>
                 <div className="flex gap-3 mt-4">
-                  <SubmitButton pendingText="Uploading…">Attach</SubmitButton>
+                  <button type="submit" className="btn btn-p" disabled={busy}>
+                    {busy && <span className="spinner" aria-hidden="true" />}
+                    {busy ? 'Uploading…' : 'Attach'}
+                  </button>
                   <button type="button" className="btn btn-o" onClick={() => setOpen(null)}>
                     Cancel
                   </button>
@@ -273,9 +282,7 @@ export default function DocumentsTab({
         ))}
 
         {addingExtra && !readOnly && (
-          <form action={action} className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--line)' }}>
-            <input type="hidden" name="site_id" value={siteId} />
-            <input type="hidden" name="doc_type" value="other" />
+          <form onSubmit={e => handleUpload(e, 'other')} className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--line)' }}>
             <div className="grid md:grid-cols-3 gap-4">
               <div className="md:col-span-2">
                 <label className="lab" htmlFor="extra_label">What document is this?</label>
@@ -291,7 +298,10 @@ export default function DocumentsTab({
               </div>
             </div>
             <div className="flex gap-3 mt-4">
-              <SubmitButton pendingText="Uploading…">Attach</SubmitButton>
+              <button type="submit" className="btn btn-p" disabled={busy}>
+                {busy && <span className="spinner" aria-hidden="true" />}
+                {busy ? 'Uploading…' : 'Attach'}
+              </button>
               <button type="button" className="btn btn-o" onClick={() => setAddingExtra(false)}>Cancel</button>
             </div>
           </form>

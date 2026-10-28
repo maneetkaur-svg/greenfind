@@ -1,9 +1,8 @@
 'use client';
-import { useActionState, useState } from 'react';
-import { uploadDocument, removeDocument, getDownloadUrl, type DocState }
-  from './documentActions';
-import { fileValidationError } from '@/lib/fileUpload';
-import SubmitButton from '@/app/SubmitButton';
+import { useState } from 'react';
+import { removeDocument, getDownloadUrl } from './documentActions';
+import { uploadStaffDocument, type DocState } from '@/lib/clientDocumentUpload';
+import { fileValidationError, MAX_FILE_BYTES_DIRECT } from '@/lib/fileUpload';
 
 export type SignedNda = {
   id: string; file_name: string; file_size: number | null;
@@ -16,16 +15,28 @@ const size = (b: number | null) =>
 export default function NdaPanel({
   siteId, signed, signatory, readOnly,
 }: { siteId: string; signed: SignedNda; signatory: string | null; readOnly: boolean }) {
-  const [state, action] = useActionState<DocState, FormData>(uploadDocument, {});
+  const [state, setState] = useState<DocState>({});
+  const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
   const [fileErr, setFileErr] = useState('');
 
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) { setFileErr(''); return; }
-    const err = fileValidationError(f);
+    const err = fileValidationError(f, MAX_FILE_BYTES_DIRECT);
     setFileErr(err ?? '');
     if (err) e.target.value = '';
+  };
+
+  const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const file = fd.get('file') as File | null;
+    if (!file || file.size === 0) { setState({ error: 'Choose a file first.' }); return; }
+    setBusy(true); setState({});
+    const result = await uploadStaffDocument({ siteId, docType: 'nda', file });
+    setBusy(false);
+    setState(result);
   };
 
   const view = async (path: string) => {
@@ -95,16 +106,17 @@ export default function NdaPanel({
         </div>
 
         {open && !readOnly && (
-          <form action={action} className="p-4 border-t" style={{ borderColor: 'var(--line)' }}>
-            <input type="hidden" name="site_id" value={siteId} />
-            <input type="hidden" name="doc_type" value="nda" />
+          <form onSubmit={onSubmit} className="p-4 border-t" style={{ borderColor: 'var(--line)' }}>
             <label className="lab" htmlFor="nda_file">Signed NDA</label>
             <input id="nda_file" name="file" type="file" required
                    accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*"
                    onChange={onFileChange} />
             {fileErr && <div className="err mt-1">{fileErr}</div>}
             <div className="flex gap-3 mt-4">
-              <SubmitButton pendingText="Uploading…">Attach</SubmitButton>
+              <button type="submit" className="btn btn-p" disabled={busy}>
+                {busy && <span className="spinner" aria-hidden="true" />}
+                {busy ? 'Uploading…' : 'Attach'}
+              </button>
               <button type="button" className="btn btn-o" onClick={() => setOpen(false)}>
                 Cancel
               </button>

@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { INDUSTRIES, REGIONS, STATES, panFromGstin } from '@/lib/constants';
 import { createClient } from '@/lib/supabase/client';
-import { fileValidationError } from '@/lib/fileUpload';
+import { fileValidationError, MAX_FILE_BYTES_DIRECT } from '@/lib/fileUpload';
 import { submitVendorSignup } from './actions';
 
 export type Cat = { id: string; industry: string; code: string; label: string; subs: { id: string; label: string }[] };
@@ -20,7 +20,7 @@ function FileField({ label, file, onChange, required = true }: {
       <label className="file-drop">
         <div className="file-drop-icon">📄</div>
         <div className="file-drop-label">{file ? file.name : 'Click to upload a file'}</div>
-        <div className="file-drop-sub">{file ? `${(file.size / 1024).toFixed(0)} KB — click to replace` : 'PDF, JPG or PNG · up to 4 MB'}</div>
+        <div className="file-drop-sub">{file ? `${(file.size / 1024).toFixed(0)} KB — click to replace` : 'PDF, JPG or PNG · up to 10 MB'}</div>
         <input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*" className="sr-only"
                onChange={e => onChange(e.target.files?.[0] ?? null)} />
       </label>
@@ -138,7 +138,7 @@ export default function OnboardForm({ cats }: { cats: Cat[] }) {
     setError('');
     if (!consent) { setError('You must agree to the data-use disclaimer to submit.'); return; }
     for (const f of [...(gstFile ? [gstFile] : []), ...(panFile ? [panFile] : [])]) {
-      const err = fileValidationError(f);
+      const err = fileValidationError(f, MAX_FILE_BYTES_DIRECT);
       if (err) { setError(err); return; }
     }
 

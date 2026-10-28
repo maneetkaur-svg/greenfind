@@ -7,8 +7,8 @@ import PlantBlocks, { blankPlant, type Plant } from '../PlantBlocks';
 import { SECTIONS, type Field } from '@/lib/schema';
 import { REGIONS, STATES, RX, panFromGstin, stateFromGstin } from '@/lib/constants';
 import { createVendor, lookupCompany, type LookupResult } from './actions';
-import { uploadDocument } from '../[id]/documentActions';
-import { fileValidationError } from '@/lib/fileUpload';
+import { uploadStaffDocument } from '@/lib/clientDocumentUpload';
+import { fileValidationError, MAX_FILE_BYTES_DIRECT } from '@/lib/fileUpload';
 
 export type Cat = { id: string; industry: string; code: string; label: string;
                     subs: { id: string; label: string }[] };
@@ -47,10 +47,6 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [files, setFiles] = useState<Record<string, Pending>>({});
-  // Keyed the same way files is — a file this big never reaches the server
-  // at all, past a certain size it would otherwise hit Next's own request-
-  // body limit first (a hard error page, not a clear message), since
-  // uploadDocument here is called the same way a <form action> would be.
   const [fileErrors, setFileErrors] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState('');
   const [customIndustryMode, setCustomIndustryMode] = useState(false);
@@ -177,7 +173,7 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
                    onChange={e => {
                      const f = e.target.files?.[0];
                      if (f) {
-                       const err = fileValidationError(f);
+                       const err = fileValidationError(f, MAX_FILE_BYTES_DIRECT);
                        setFileErrors(p => ({ ...p, [d.code]: err ?? '' }));
                        if (err) { e.target.value = ''; return; }
                      } else {
@@ -332,13 +328,10 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
     for (const [code, f] of entries) {
       done++;
       setUploading(`Uploading ${f.file.name} (${done} of ${total})…`);
-      const fd = new FormData();
-      fd.set('site_id', res.siteId!);
-      fd.set('doc_type', code);
-      fd.set('file', f.file);
-      fd.set('doc_number', f.number);
-      fd.set('valid_until', f.validUntil);
-      const up = await uploadDocument({}, fd);
+      const up = await uploadStaffDocument({
+        siteId: res.siteId!, docType: code, file: f.file,
+        docNumber: f.number, validUntil: f.validUntil,
+      });
       if (up.error) failed.push(`${code}: ${up.error}`);
     }
     // Free-form extras all share doc_type 'other' — none of them supersede
@@ -347,12 +340,9 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
     for (const x of extras) {
       done++;
       setUploading(`Uploading ${x.file.name} (${done} of ${total})…`);
-      const fd = new FormData();
-      fd.set('site_id', res.siteId!);
-      fd.set('doc_type', 'other');
-      fd.set('file', x.file);
-      fd.set('doc_number', x.label);
-      const up = await uploadDocument({}, fd);
+      const up = await uploadStaffDocument({
+        siteId: res.siteId!, docType: 'other', file: x.file, docNumber: x.label,
+      });
       if (up.error) failed.push(`${x.label}: ${up.error}`);
     }
     setUploading('');
@@ -772,7 +762,7 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
               <p className="text-[13.5px] mb-4" style={{ color: 'var(--faint)' }}>
                 Most documents were already asked for on the step they belong to —
                 here is where things stand, plus anything extra. Nothing here blocks
-                creating the vendor. PDF, JPG or PNG, up to 4 MB each.
+                creating the vendor. PDF, JPG or PNG, up to 10 MB each.
               </p>
 
               {docs.filter(d => CONTEXTUAL_DOC_CODES.includes(d.code)).length > 0 && (
@@ -850,7 +840,7 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
                              onChange={e => {
                                const f = e.target.files?.[0] ?? null;
                                if (f) {
-                                 const err = fileValidationError(f);
+                                 const err = fileValidationError(f, MAX_FILE_BYTES_DIRECT);
                                  setFileErrors(p => ({ ...p, extra: err ?? '' }));
                                  if (err) { e.target.value = ''; return; }
                                } else {
