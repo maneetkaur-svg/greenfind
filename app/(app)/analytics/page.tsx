@@ -19,6 +19,13 @@ const INDUSTRY_VAR: Record<string, string> = {
   recycling: 'var(--ind-recycling)', transportation: 'var(--ind-transportation)', packaging: 'var(--ind-packaging)',
   warehouse: 'var(--ind-warehouse)', scrap_trading: 'var(--ind-scrap)', unclassified: 'var(--ind-other)',
 };
+const SOURCE_LABEL: Record<string, string> = {
+  import: 'Import', manual: 'Internal', public_form: 'Quick sign-up',
+  public_form_full: 'Complete onboarding', old_portal: 'Old portal',
+};
+const SOURCE_ICON: Record<string, string> = {
+  import: '📥', manual: '✍️', public_form: '🔗', public_form_full: '📋', old_portal: '🗄️',
+};
 // Same solid tier colors used for chips (TIER_CHIP_CLASS) elsewhere in the
 // app — c-a (amber), c-n (grey), c-g (green) — as a fill/tint rather than a
 // pale chip background, so a vendor's status reads the same color wherever
@@ -165,6 +172,10 @@ export default async function AnalyticsPage({
   const industryRows = industryOrder.map(code => ({ code, n: byIndustry.get(code) ?? 0 }));
   const industryByCount = [...industryRows].sort((a, b) => b.n - a.n).filter(r => r.n > 0);
 
+  const bySource = new Map<string, number>();
+  for (const s of sites) { const k = s.source ?? 'unknown'; bySource.set(k, (bySource.get(k) ?? 0) + 1); }
+  const sourceRows = [...bySource.entries()].map(([code, n]) => ({ code, n })).sort((a, b) => b.n - a.n);
+
   let entityBlank = 0, msmeIncomplete = 0, yearBlank = 0, signatoryBlank = 0, chequeFalse = 0, tradeNameBlank = 0;
   for (const s of sites) {
     const c = companyById.get(s.company_id);
@@ -198,6 +209,8 @@ export default async function AnalyticsPage({
     hrefFor({ tier: tiers.includes(t) ? tiers.filter(x => x !== t) : [...tiers, t] });
   const toggleIndustry = (code: string) =>
     hrefFor({ industry: industries.includes(code) ? industries.filter(x => x !== code) : [...industries, code] });
+  const toggleSource = (code: string) =>
+    hrefFor({ source: sources.includes(code) ? sources.filter(x => x !== code) : [...sources, code] });
 
   // Conic-gradient stops for the industry donut — built from the same
   // counts as the tiles above, just a different shape for the same numbers.
@@ -283,6 +296,41 @@ export default async function AnalyticsPage({
                         {INDUSTRY_ICON[code]}
                       </span>
                       {label}
+                    </span>
+                    <span style={{ color: 'var(--line-2)' }}>›</span>
+                  </div>
+                  <div className="flex items-baseline justify-between mt-2">
+                    <span className="text-[20px] font-bold">{n}</span>
+                    <span className="text-[11.5px] font-bold" style={{ color: 'var(--faint)' }}>{pct(n, total)}% of total</span>
+                  </div>
+                  <div className="h-[6px] rounded-full mt-2" style={{ background: 'var(--surface-2)' }}>
+                    <div className="h-full rounded-full" style={{ width: `${pct(n, total)}%`, background: 'var(--p500)' }} />
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center justify-between mb-3 mt-5 flex-wrap gap-2">
+            <h2 className="text-[13px] font-bold flex items-center gap-2" style={{ color: 'var(--head)' }}>
+              <span className="icon-circle icon-purple" style={{ width: 28, height: 28, fontSize: 13 }}>🔗</span>
+              By Source
+            </h2>
+            <span className="text-[11.5px] font-semibold" style={{ color: 'var(--faint)' }}>Where each vendor came from</span>
+          </div>
+          <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
+            {sourceRows.map(({ code, n }) => {
+              const on = sources.includes(code);
+              return (
+                <Link key={code} href={toggleSource(code)}
+                      className={`card metric-box p-3 block ${on ? 'metric-box-selected' : ''}`}
+                      title={`${n} vendors — click to ${on ? 'remove from' : 'add to'} the filter`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-2 text-[13px] font-bold" style={{ color: 'var(--head)' }}>
+                      <span className="icon-circle icon-grey" style={{ width: 30, height: 30, fontSize: 14 }}>
+                        {SOURCE_ICON[code] ?? '•'}
+                      </span>
+                      {SOURCE_LABEL[code] ?? code}
                     </span>
                     <span style={{ color: 'var(--line-2)' }}>›</span>
                   </div>
