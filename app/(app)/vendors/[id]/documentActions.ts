@@ -3,7 +3,6 @@ import { revalidatePath } from 'next/cache';
 import { after } from 'next/server';
 import { createClient, getMe } from '@/lib/supabase/server';
 import { extractEntityFromCertificate } from '@/lib/entityFromCertificate';
-import { fileValidationError } from '@/lib/fileUpload';
 
 export type DocState = { error?: string; ok?: string };
 
@@ -11,52 +10,38 @@ export type DocState = { error?: string; ok?: string };
 // an upload. Flip to false to stop the Gemini call from happening at all.
 const GST_ENTITY_EXTRACTION_ENABLED = true;
 
-/** Uploads the file to Storage, then records it. Replacing a document
+export type AttachDocumentInput = {
+  siteId: string; docType: string; storagePath: string;
+  fileName: string; fileSize: number; mimeType: string | null;
+  docNumber?: string; validUntil?: string;
+};
+
+/** Records a file already uploaded to Storage by the browser (see
+ *  lib/clientDocumentUpload.ts) -- this action never receives the file
+ *  itself, only its path and metadata, so it stays far under Vercel's
+ *  4.5MB Server Action body limit regardless of how large the document is
+ *  (see lib/fileUpload.ts for the full explanation). Replacing a document
  *  supersedes the previous row rather than overwriting it, so the
- *  verification trail survives. */
-export async function uploadDocument(
-  _prev: DocState, formData: FormData
-): Promise<DocState> {
+ *  verification trail survives (sql/01_schema.sql's doc_supersede trigger). */
+export async function attachUploadedDocument(input: AttachDocumentInput): Promise<DocState> {
   const me = await getMe();
   if (!me) return { error: 'You are not signed in.' };
   if (me.role === 'user') return { error: 'Your role is read-only.' };
 
-  const siteId = String(formData.get('site_id') ?? '');
-  const docType = String(formData.get('doc_type') ?? '');
-  const file = formData.get('file') as File | null;
-
-  if (!siteId || !docType) return { error: 'Something is missing from the form.' };
-  if (!file || file.size === 0) return { error: 'Choose a file first.' };
-  const fileErr = fileValidationError(file);
-  if (fileErr) return { error: fileErr };
+  const { siteId, docType, storagePath, fileName, fileSize, mimeType, docNumber, validUntil } = input;
+  if (!siteId || !docType || !storagePath) return { error: 'Something is missing from the upload.' };
 
   const supabase = await createClient();
-  const safe = file.name.replace(/[^A-Za-z0-9._-]/g, '_');
-  const path = `${siteId}/${docType}/${Date.now()}_${safe}`;
-
-  const { error: upErr } = await supabase.storage
-    .from('vendor-documents')
-    .upload(path, file, { contentType: file.type || undefined, upsert: false });
-
-  if (upErr) {
-    if (upErr.message.toLowerCase().includes('bucket'))
-      return { error: 'The vendor-documents bucket does not exist. Run 02_security.sql in Supabase.' };
-    return { error: 'Upload failed: ' + upErr.message };
-  }
-
-  const validUntil = String(formData.get('valid_until') ?? '').trim();
-  const docNumber = String(formData.get('doc_number') ?? '').trim();
-
   const { error: rowErr } = await supabase.from('site_document').insert({
-    site_id: siteId, doc_type: docType, storage_path: path,
-    file_name: file.name, file_size: file.size, mime_type: file.type || null,
+    site_id: siteId, doc_type: docType, storage_path: storagePath,
+    file_name: fileName, file_size: fileSize, mime_type: mimeType,
     doc_number: docNumber || null,
     valid_until: validUntil || null,
     uploaded_by: me.id,
   });
 
   if (rowErr) {
-    await supabase.storage.from('vendor-documents').remove([path]);
+    await supabase.storage.from('vendor-documents').remove([storagePath]);
     return { error: 'Saved the file but could not record it, so it has been removed: ' + rowErr.message };
   }
 
@@ -65,11 +50,12 @@ export async function uploadDocument(
   // up to ~150s worst case (60s timeout + 30s backoff + a 60s retry) — that
   // used to sit in the critical path the user's "Uploading…" spinner was
   // waiting on. after() runs it once the response has already gone back,
-  // so the upload itself always completes in the time Storage + one insert
-  // actually take, never blocking on Gemini. See lib/entityFromCertificate.ts.
+  // so the upload itself always completes in the time the insert itself
+  // takes, never blocking on Gemini. The file is read back from Storage
+  // here (rather than carried over from the request) because this action
+  // never receives the file's bytes in the first place. See
+  // lib/entityFromCertificate.ts.
   if (docType === 'gst' && GST_ENTITY_EXTRACTION_ENABLED) {
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const mime = file.type || 'application/pdf';
     after(async () => {
       try {
         const { data: site } = await supabase.from('vendor_site').select('company_id').eq('id', siteId).single();
@@ -77,7 +63,10 @@ export async function uploadDocument(
           ? await supabase.from('company').select('entity').eq('id', site.company_id).single()
           : { data: null };
         if (site && !co?.entity) {
-          const result = await extractEntityFromCertificate(supabase, site.company_id, buffer, mime);
+          const { data: blob } = await supabase.storage.from('vendor-documents').download(storagePath);
+          if (!blob) return;
+          const buffer = Buffer.from(await blob.arrayBuffer());
+          const result = await extractEntityFromCertificate(supabase, site.company_id, buffer, mimeType || 'application/pdf');
           // The page that triggered the upload has already rendered by now
           // (it's past response time) — revalidate again so the entity
           // type shows up next time this vendor is opened, not just after
@@ -92,7 +81,7 @@ export async function uploadDocument(
 
   revalidatePath(`/vendors/${siteId}`);
   revalidatePath('/vendors');
-  return { ok: `${file.name} attached.` };
+  return { ok: `${fileName} attached.` };
 }
 
 export async function removeDocument(formData: FormData) {

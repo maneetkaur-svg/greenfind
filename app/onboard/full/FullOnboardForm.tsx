@@ -5,7 +5,7 @@ import PlantBlocks, { blankPlant, type Plant } from '@/app/(app)/vendors/PlantBl
 import { SECTIONS } from '@/lib/schema';
 import { INDUSTRIES, REGIONS, STATES, RX, panFromGstin, stateFromGstin } from '@/lib/constants';
 import { createClient } from '@/lib/supabase/client';
-import { fileValidationError } from '@/lib/fileUpload';
+import { fileValidationError, MAX_FILE_BYTES_DIRECT } from '@/lib/fileUpload';
 import { submitVendorSignupFull } from './actions';
 
 export type Cat = { id: string; industry: string; code: string; label: string; subs: { id: string; label: string }[] };
@@ -195,7 +195,7 @@ export default function FullOnboardForm({ cats, docRules }: { cats: Cat[]; docRu
                      onChange={e => {
                        const f = e.target.files?.[0];
                        if (f) {
-                         const err = fileValidationError(f);
+                         const err = fileValidationError(f, MAX_FILE_BYTES_DIRECT);
                          setFileErrors(p => ({ ...p, [d.code]: err ?? '' }));
                          if (err) { e.target.value = ''; return; }
                        } else {
@@ -717,7 +717,7 @@ export default function FullOnboardForm({ cats, docRules }: { cats: Cat[]; docRu
                                onChange={e => {
                                  const f = e.target.files?.[0] ?? null;
                                  if (f) {
-                                   const err = fileValidationError(f);
+                                   const err = fileValidationError(f, MAX_FILE_BYTES_DIRECT);
                                    setFileErrors(p => ({ ...p, extra: err ?? '' }));
                                    if (err) { e.target.value = ''; return; }
                                  } else setFileErrors(p => ({ ...p, extra: '' }));

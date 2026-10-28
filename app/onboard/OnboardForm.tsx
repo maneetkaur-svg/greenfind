@@ -2,12 +2,11 @@
 import { useEffect, useState } from 'react';
 import { INDUSTRIES, REGIONS, STATES, panFromGstin } from '@/lib/constants';
 import { createClient } from '@/lib/supabase/client';
+import { fileValidationError, MAX_FILE_BYTES_DIRECT } from '@/lib/fileUpload';
 import { submitVendorSignup } from './actions';
 
 export type Cat = { id: string; industry: string; code: string; label: string; subs: { id: string; label: string }[] };
 
-const MAX_FILE = 10 * 1024 * 1024;
-const OK_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
 const HOW_HEARD = ['Referral from another vendor', 'Social media', 'Google search', 'Industry event or exhibition', 'Fitsol team reached out', 'Other'];
 type Contact = { name: string; designation: string; mobile: string; email: string };
 const blankContact: Contact = { name: '', designation: '', mobile: '', email: '' };
@@ -139,8 +138,8 @@ export default function OnboardForm({ cats }: { cats: Cat[] }) {
     setError('');
     if (!consent) { setError('You must agree to the data-use disclaimer to submit.'); return; }
     for (const f of [...(gstFile ? [gstFile] : []), ...(panFile ? [panFile] : [])]) {
-      if (f.size > MAX_FILE) { setError(`${f.name} is larger than 10 MB.`); return; }
-      if (!OK_TYPES.includes(f.type)) { setError('Only PDF, JPG and PNG are accepted.'); return; }
+      const err = fileValidationError(f, MAX_FILE_BYTES_DIRECT);
+      if (err) { setError(err); return; }
     }
 
     setBusy(true);

@@ -3,6 +3,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createClient, getMe } from '@/lib/supabase/server';
 import { INDUSTRIES } from '@/lib/constants';
+import { fileValidationError } from '@/lib/fileUpload';
 
 export type FormState = { error?: string; ok?: string };
 
@@ -234,7 +235,8 @@ export async function markPoSigned(_prev: FormState, formData: FormData): Promis
   let signedPath: string | null = null;
 
   if (file && file.size > 0) {
-    if (file.size > 10 * 1024 * 1024) return { error: 'That file is larger than 10 MB.' };
+    const fileErr = fileValidationError(file);
+    if (fileErr) return { error: fileErr };
     const safe = file.name.replace(/[^A-Za-z0-9._-]/g, '_');
     signedPath = `po/${poId}/${Date.now()}_${safe}`;
     const { error: upErr } = await supabase.storage.from('vendor-documents')
