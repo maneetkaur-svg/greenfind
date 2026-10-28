@@ -6,9 +6,14 @@ export const metadata: Metadata = {
   description: 'Internal vendor management tool for Fitsol',
 };
 
+// The dark-mode script below sets data-theme on <html> before React
+// hydrates (that's the whole point — no flash of the wrong theme), which
+// otherwise reads to React as a server/client mismatch on that one node.
+// suppressHydrationWarning tells it that's expected there, without
+// silencing mismatches anywhere else in the tree.
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         {/* Loaded by the browser rather than by next/font, so a slow or blocked
             Google Fonts request can never fail the build. */}
