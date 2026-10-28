@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { createClient, getMe } from '@/lib/supabase/server';
 import { INDUSTRIES } from '@/lib/constants';
 import { vendorTier, TIER_LABEL, type VendorTier } from '@/lib/vendorTier';
-import PocPicker from './PocPicker';
+import AddedByPicker from './AddedByPicker';
 
 const INDUSTRY_LABEL: Record<string, string> = Object.fromEntries(INDUSTRIES.map(i => [i.code, i.label]));
 const INDUSTRY_ICON: Record<string, string> = {
@@ -45,20 +45,21 @@ const pct = (n: number, total: number) => total ? Math.round((n / total) * 100) 
  *  sql/50_vendor_tier_schema.sql). One screen, tile-first: the headline
  *  tiles, every industry/source/status tile, and the distribution legend are
  *  themselves the filter controls (click one, same as the vendor list's own
- *  dashboard tiles). The "find a contact" panel is deliberately its own
- *  lookup rather than folded into that filter set — picking a name there
- *  just answers one question, independent of whatever else is filtered.
- *  Document/data-quality detail that would otherwise make this scroll lives
- *  in one collapsed panel at the bottom. */
+ *  dashboard tiles). The "added by" panel is deliberately its own lookup
+ *  rather than folded into that filter set — picking a name there just
+ *  answers one question (how many vendors did this person bring in),
+ *  independent of whatever else is filtered. Document/data-quality detail
+ *  that would otherwise make this scroll lives in one collapsed panel at
+ *  the bottom. */
 export default async function AnalyticsPage({
   searchParams,
-}: { searchParams: Promise<{ industry?: string; source?: string; tier?: string; poc?: string }> }) {
+}: { searchParams: Promise<{ industry?: string; source?: string; tier?: string; addedBy?: string }> }) {
   const me = await getMe();
   if (!me) redirect('/login');
   if (me.role !== 'super_admin') redirect('/vendors');
   const supabase = await createClient();
 
-  const { industry: industryParam, source: sourceParam, tier: tierParam, poc } = await searchParams;
+  const { industry: industryParam, source: sourceParam, tier: tierParam, addedBy } = await searchParams;
   const industries = (industryParam ?? '').split(',').filter(Boolean);
   const realIndustries = industries.filter(i => i !== 'unclassified');
   const wantsUnclassified = industries.includes('unclassified');
@@ -82,7 +83,7 @@ export default async function AnalyticsPage({
   const siteIds = sites.map(s => s.id);
   const companyIds = [...new Set(sites.map(s => s.company_id))];
 
-  const [{ data: companiesRaw }, { data: contactsRaw }, { data: catsRaw }, { data: reqRaw }, { data: docsRaw }, { data: pocRaw }] = await Promise.all([
+  const [{ data: companiesRaw }, { data: contactsRaw }, { data: catsRaw }, { data: reqRaw }, { data: docsRaw }, { data: addedByRaw }] = await Promise.all([
     companyIds.length
       ? supabase.from('company').select('id, entity, year_established, authorised_signatory, cheque_on_file, udyam_number, trade_name').in('id', companyIds)
       : Promise.resolve({ data: [] as Company[] }),
@@ -97,11 +98,11 @@ export default async function AnalyticsPage({
     siteIds.length
       ? supabase.from('site_document').select('site_id, doc_type').is('superseded_at', null).in('site_id', siteIds)
       : Promise.resolve({ data: [] as { site_id: string; doc_type: string }[] }),
-    // Every primary contact on record, independent of the industry/source/
-    // status filters above — the "find a contact" panel is its own lookup.
-    supabase.from('site_contact')
-      .select('name, vendor_site!inner(deleted_at)')
-      .eq('rank', 1).not('name', 'is', null).is('vendor_site.deleted_at', null),
+    // Who added each vendor, across every vendor on record, independent of
+    // the industry/source/status filters above — the "added by" panel is
+    // its own lookup. added_by_name is already null-safe for anything with
+    // no staff attribution (a public sign-up, or an unattributed import).
+    supabase.from('site_summary').select('added_by_name'),
   ]);
 
   const companyById = new Map((companiesRaw ?? []).map(c => [c.id, c as Company]));
@@ -111,12 +112,15 @@ export default async function AnalyticsPage({
     if (!c.designation || !c.email) contactGapSites.add(c.site_id);
   }
 
-  const pocCounts = new Map<string, number>();
-  for (const r of (pocRaw ?? []) as { name: string | null }[]) {
-    if (r.name) pocCounts.set(r.name, (pocCounts.get(r.name) ?? 0) + 1);
+  const EXTERNAL = 'External';
+  const addedByCounts = new Map<string, number>();
+  for (const r of (addedByRaw ?? []) as { added_by_name: string | null }[]) {
+    const k = r.added_by_name ?? EXTERNAL;
+    addedByCounts.set(k, (addedByCounts.get(k) ?? 0) + 1);
   }
-  const pocOptions = [...pocCounts.keys()].sort((a, b) => a.localeCompare(b));
-  const selectedPocCount = poc ? (pocCounts.get(poc) ?? 0) : null;
+  const addedByOptions = [...addedByCounts.keys()].filter(k => k !== EXTERNAL).sort((a, b) => a.localeCompare(b));
+  if (addedByCounts.has(EXTERNAL)) addedByOptions.push(EXTERNAL);
+  const selectedAddedByCount = addedBy ? (addedByCounts.get(addedBy) ?? 0) : null;
 
   const sitesWithCategory = new Set((catsRaw ?? []).map(c => c.site_id));
 
@@ -177,8 +181,8 @@ export default async function AnalyticsPage({
 
   // Every tile below toggles one value into (or out of) its own filter array,
   // carrying the other filters over unchanged — same convention as the
-  // vendor list's dashboard tiles (vendors/DashboardCard.tsx). The POC pick
-  // is deliberately not one of these three — see PocPicker.
+  // vendor list's dashboard tiles (vendors/DashboardCard.tsx). The "added
+  // by" pick is deliberately not one of these three — see AddedByPicker.
   const hrefFor = (next: { industry?: string[]; source?: string[]; tier?: string[] }) => {
     const params = new URLSearchParams();
     const i = next.industry ?? industries;
@@ -352,12 +356,12 @@ export default async function AnalyticsPage({
           </div>
 
           <div className="card p-4">
-            <h2 className="text-[13px] font-bold mb-3" style={{ color: 'var(--head)' }}>Find a contact</h2>
-            <PocPicker value={poc} options={pocOptions} />
-            {poc && (
+            <h2 className="text-[13px] font-bold mb-3" style={{ color: 'var(--head)' }}>Added by</h2>
+            <AddedByPicker value={addedBy} options={addedByOptions} />
+            {addedBy && (
               <div className="card p-3 mt-3" style={{ background: 'var(--p50)' }}>
-                <div className="text-[12px] font-semibold" style={{ color: 'var(--faint)' }}>{poc}</div>
-                <div className="text-[24px] font-bold leading-tight mt-0.5">{selectedPocCount}</div>
+                <div className="text-[12px] font-semibold" style={{ color: 'var(--faint)' }}>{addedBy}</div>
+                <div className="text-[24px] font-bold leading-tight mt-0.5">{selectedAddedByCount}</div>
                 <div className="text-[12px] font-bold" style={{ color: 'var(--head)' }}>Vendors onboarded</div>
               </div>
             )}
