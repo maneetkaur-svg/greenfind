@@ -3,26 +3,29 @@ import { redirect } from 'next/navigation';
 import { createClient, getMe } from '@/lib/supabase/server';
 import { INDUSTRIES } from '@/lib/constants';
 import { vendorTier, TIER_LABEL, type VendorTier } from '@/lib/vendorTier';
-import PocSearch from './PocSearch';
+import PocPicker from './PocPicker';
 
-const SOURCE_LABEL: Record<string, string> = {
-  import: 'Bulk / legacy import', manual: 'Manual (staff Add Vendor)', public_form: 'Public sign-up form',
-  public_form_full: 'Public complete onboarding form', old_portal: 'Old GreenFind Portal',
-};
-const SOURCE_SHORT: Record<string, string> = {
-  import: 'Import', manual: 'Internal', public_form: 'Quick sign-up',
-  public_form_full: 'Complete onboarding', old_portal: 'Old portal',
-};
 const INDUSTRY_LABEL: Record<string, string> = Object.fromEntries(INDUSTRIES.map(i => [i.code, i.label]));
 const INDUSTRY_ICON: Record<string, string> = {
-  recycling: '♻️', transportation: '🚚', packaging: '📦', warehouse: '🏭', scrap_trading: '🔩',
+  recycling: '♻️', transportation: '🚚', packaging: '📦', warehouse: '🏭', scrap_trading: '🔩', unclassified: '•••',
 };
-// The same solid tier colors used for chips (TIER_CHIP_CLASS) elsewhere in
-// the app — c-a (amber), c-n (grey), c-g (green) — just as a bar fill rather
-// than a pale chip background, so a vendor's status reads the same color
-// wherever it shows up.
-const TIER_FILL: Record<VendorTier, string> = { onboarded: 'var(--warn)', unverified: 'var(--line-2)', verified: 'var(--p500)' };
-const TIER_ICON: Record<VendorTier, string> = { onboarded: '◐', unverified: '◑', verified: '●' };
+// Same hues as the icon-* badges on the vendor list's own dashboard
+// (DashboardCard.tsx) — an industry is always the same color everywhere.
+const INDUSTRY_CLASS: Record<string, string> = {
+  recycling: 'icon-blue', transportation: 'icon-purple', packaging: 'icon-orange',
+  warehouse: 'icon-teal', scrap_trading: 'icon-amber', unclassified: 'icon-grey',
+};
+const INDUSTRY_VAR: Record<string, string> = {
+  recycling: 'var(--ind-recycling)', transportation: 'var(--ind-transportation)', packaging: 'var(--ind-packaging)',
+  warehouse: 'var(--ind-warehouse)', scrap_trading: 'var(--ind-scrap)', unclassified: 'var(--ind-other)',
+};
+// Same solid tier colors used for chips (TIER_CHIP_CLASS) elsewhere in the
+// app — c-a (amber), c-n (grey), c-g (green) — as a fill/tint rather than a
+// pale chip background, so a vendor's status reads the same color wherever
+// it shows up.
+const TIER_FILL: Record<VendorTier, string> = { onboarded: 'var(--warn)', unverified: 'var(--faint)', verified: 'var(--p500)' };
+const TIER_TINT: Record<VendorTier, string> = { onboarded: 'var(--warn-l)', unverified: 'var(--surface-2)', verified: 'var(--p50)' };
+const TIER_ICON: Record<VendorTier, string> = { onboarded: '◐', unverified: '◑', verified: '✓' };
 
 type Site = {
   id: string; company_id: string; industry: string | null; source: string | null;
@@ -40,12 +43,13 @@ const pct = (n: number, total: number) => total ? Math.round((n / total) * 100) 
 /** Live numbers, pulled fresh on every load. Vendor status is the Onboarded /
  *  Unverified / Verified tier (see vendor_status_schema.xlsx and
  *  sql/50_vendor_tier_schema.sql). One screen, tile-first: the headline
- *  tiles and every industry/source tile are themselves the filter controls
- *  (click one the same way the vendor list's dashboard tiles work) — the
- *  dropdowns above exist for the cases a tile can't cover (Source needs its
- *  own control too since there are more values than fit as tiles cleanly,
- *  and POC is free-text search). Document/data-quality detail that would
- *  otherwise make this scroll lives in one collapsed panel at the bottom. */
+ *  tiles, every industry/source/status tile, and the distribution legend are
+ *  themselves the filter controls (click one, same as the vendor list's own
+ *  dashboard tiles). The "find a contact" panel is deliberately its own
+ *  lookup rather than folded into that filter set — picking a name there
+ *  just answers one question, independent of whatever else is filtered.
+ *  Document/data-quality detail that would otherwise make this scroll lives
+ *  in one collapsed panel at the bottom. */
 export default async function AnalyticsPage({
   searchParams,
 }: { searchParams: Promise<{ industry?: string; source?: string; tier?: string; poc?: string }> }) {
@@ -60,7 +64,6 @@ export default async function AnalyticsPage({
   const wantsUnclassified = industries.includes('unclassified');
   const sources = (sourceParam ?? '').split(',').filter(Boolean);
   const tiers = (tierParam ?? '').split(',').filter(Boolean) as VendorTier[];
-  const pocNeedle = (poc ?? '').trim().toLowerCase();
 
   let sitesQuery = supabase
     .from('site_summary')
@@ -79,7 +82,7 @@ export default async function AnalyticsPage({
   const siteIds = sites.map(s => s.id);
   const companyIds = [...new Set(sites.map(s => s.company_id))];
 
-  const [{ data: companiesRaw }, { data: contactsRaw }, { data: catsRaw }, { data: reqRaw }, { data: docsRaw }] = await Promise.all([
+  const [{ data: companiesRaw }, { data: contactsRaw }, { data: catsRaw }, { data: reqRaw }, { data: docsRaw }, { data: pocRaw }] = await Promise.all([
     companyIds.length
       ? supabase.from('company').select('id, entity, year_established, authorised_signatory, cheque_on_file, udyam_number, trade_name').in('id', companyIds)
       : Promise.resolve({ data: [] as Company[] }),
@@ -94,20 +97,26 @@ export default async function AnalyticsPage({
     siteIds.length
       ? supabase.from('site_document').select('site_id, doc_type').is('superseded_at', null).in('site_id', siteIds)
       : Promise.resolve({ data: [] as { site_id: string; doc_type: string }[] }),
+    // Every primary contact on record, independent of the industry/source/
+    // status filters above — the "find a contact" panel is its own lookup.
+    supabase.from('site_contact')
+      .select('name, vendor_site!inner(deleted_at)')
+      .eq('rank', 1).not('name', 'is', null).is('vendor_site.deleted_at', null),
   ]);
 
   const companyById = new Map((companiesRaw ?? []).map(c => [c.id, c as Company]));
 
   const contactGapSites = new Set<string>();
-  const primaryContactName = new Map<string, string>();
   for (const c of (contactsRaw ?? [])) {
     if (!c.designation || !c.email) contactGapSites.add(c.site_id);
-    if (c.rank === 1 && c.name) primaryContactName.set(c.site_id, c.name);
   }
 
-  if (pocNeedle) {
-    sites = sites.filter(s => (primaryContactName.get(s.id) ?? '').toLowerCase().includes(pocNeedle));
+  const pocCounts = new Map<string, number>();
+  for (const r of (pocRaw ?? []) as { name: string | null }[]) {
+    if (r.name) pocCounts.set(r.name, (pocCounts.get(r.name) ?? 0) + 1);
   }
+  const pocOptions = [...pocCounts.keys()].sort((a, b) => a.localeCompare(b));
+  const selectedPocCount = poc ? (pocCounts.get(poc) ?? 0) : null;
 
   const sitesWithCategory = new Set((catsRaw ?? []).map(c => c.site_id));
 
@@ -143,21 +152,14 @@ export default async function AnalyticsPage({
     byTier.set(t, (byTier.get(t) ?? 0) + 1);
   }
 
-  const bySource = new Map<string, number>();
-  for (const s of sites) { const k = s.source ?? 'unknown'; bySource.set(k, (bySource.get(k) ?? 0) + 1); }
-
-  const byIndustryTier = new Map<string, Record<VendorTier, number> & { total: number }>();
-  for (const s of sites) {
-    const k = s.industry ?? 'unclassified';
-    const row = byIndustryTier.get(k) ?? { onboarded: 0, unverified: 0, verified: 0, total: 0 };
-    row[vendorTier(s.core_complete, s.banking_complete)]++;
-    row.total++;
-    byIndustryTier.set(k, row);
-  }
+  const byIndustry = new Map<string, number>();
+  for (const s of sites) { const k = s.industry ?? 'unclassified'; byIndustry.set(k, (byIndustry.get(k) ?? 0) + 1); }
   // Every fixed industry shows even at zero, same reasoning as the vendor
   // list's own dashboard (DashboardCard.tsx) — a brand-new industry with
   // nothing in it yet is a real zero, not a missing tile.
   const industryOrder = [...INDUSTRIES.map(i => i.code), 'unclassified'];
+  const industryRows = industryOrder.map(code => ({ code, n: byIndustry.get(code) ?? 0 }));
+  const industryByCount = [...industryRows].sort((a, b) => b.n - a.n).filter(r => r.n > 0);
 
   let entityBlank = 0, msmeIncomplete = 0, yearBlank = 0, signatoryBlank = 0, chequeFalse = 0, tradeNameBlank = 0;
   for (const s of sites) {
@@ -174,8 +176,9 @@ export default async function AnalyticsPage({
   const contactGapCount = sites.filter(s => contactGapSites.has(s.id)).length;
 
   // Every tile below toggles one value into (or out of) its own filter array,
-  // carrying the other three filters over unchanged — same convention as
-  // the vendor list's dashboard tiles (vendors/DashboardCard.tsx).
+  // carrying the other filters over unchanged — same convention as the
+  // vendor list's dashboard tiles (vendors/DashboardCard.tsx). The POC pick
+  // is deliberately not one of these three — see PocPicker.
   const hrefFor = (next: { industry?: string[]; source?: string[]; tier?: string[] }) => {
     const params = new URLSearchParams();
     const i = next.industry ?? industries;
@@ -184,7 +187,6 @@ export default async function AnalyticsPage({
     if (i.length) params.set('industry', i.join(','));
     if (s.length) params.set('source', s.join(','));
     if (t.length) params.set('tier', t.join(','));
-    if (poc) params.set('poc', poc);
     const qs = params.toString();
     return qs ? `/analytics?${qs}` : '/analytics';
   };
@@ -192,16 +194,16 @@ export default async function AnalyticsPage({
     hrefFor({ tier: tiers.includes(t) ? tiers.filter(x => x !== t) : [...tiers, t] });
   const toggleIndustry = (code: string) =>
     hrefFor({ industry: industries.includes(code) ? industries.filter(x => x !== code) : [...industries, code] });
-  const toggleSource = (code: string) =>
-    hrefFor({ source: sources.includes(code) ? sources.filter(x => x !== code) : [...sources, code] });
 
-  const StackBar = ({ row }: { row: Record<VendorTier, number> & { total: number } }) => (
-    <div className="flex gap-[2px] h-[7px] rounded-full overflow-hidden mt-2" style={{ background: 'var(--surface-2)' }}>
-      {(['onboarded', 'unverified', 'verified'] as VendorTier[]).map(t => row[t] > 0 && (
-        <div key={t} style={{ width: `${pct(row[t], row.total)}%`, background: TIER_FILL[t] }} title={`${TIER_LABEL[t]}: ${row[t]}`} />
-      ))}
-    </div>
-  );
+  // Conic-gradient stops for the industry donut — built from the same
+  // counts as the tiles above, just a different shape for the same numbers.
+  let acc = 0;
+  const donutStops = industryByCount.map(r => {
+    const from = acc;
+    acc += pct(r.n, total);
+    return `${INDUSTRY_VAR[r.code]} ${from}% ${r.code === industryByCount[industryByCount.length - 1].code ? 100 : acc}%`;
+  });
+  const donutGradient = donutStops.length ? `conic-gradient(${donutStops.join(', ')})` : 'var(--surface-2)';
 
   return (
     <>
@@ -209,25 +211,21 @@ export default async function AnalyticsPage({
         <div>
           <h1 className="text-[24px] font-bold mt-1 mb-0.5">Analytics</h1>
           <p className="text-[13px]" style={{ color: 'var(--faint)' }}>
-            Vendor onboarding status, computed fresh from the database. Click any tile below
-            to filter by industry, source or status — search by contact name here.
+            Vendor onboarding status, computed fresh from the database. Click any tile to filter.
           </p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <PocSearch value={poc} industry={industryParam} source={sourceParam} tier={tierParam} />
-          {(industries.length > 0 || sources.length > 0 || tiers.length > 0 || !!poc) && (
-            <Link href="/analytics" className="text-[12.5px] font-semibold" style={{ color: 'var(--faint)' }}>
-              Clear all
-            </Link>
-          )}
-        </div>
+        {(industries.length > 0 || sources.length > 0 || tiers.length > 0) && (
+          <Link href="/analytics" className="text-[12.5px] font-semibold" style={{ color: 'var(--faint)' }}>
+            Clear all filters
+          </Link>
+        )}
       </div>
 
       {sitesErr && <div className="note r mb-4"><b>Could not read vendor data.</b> {sitesErr.message}</div>}
 
       {/* Headline — the four numbers that matter most, each a filter toggle. */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-        <div className="card metric-box p-4">
+        <div className="card p-4" style={{ background: 'var(--p50)' }}>
           <div className="flex items-center gap-3">
             <span className="icon-circle icon-green">🏢</span>
             <div className="text-[28px] font-bold leading-tight">{total}</div>
@@ -239,16 +237,17 @@ export default async function AnalyticsPage({
           const n = byTier.get(t) ?? 0;
           return (
             <Link key={t} href={toggleTier(t)}
-                  className={`card metric-box p-4 block ${on ? 'metric-box-selected' : ''}`}
+                  className={`card p-4 block metric-box ${on ? 'metric-box-selected' : ''}`}
+                  style={on ? undefined : { background: TIER_TINT[t] }}
                   title={`${n} ${TIER_LABEL[t].toLowerCase()} · ${pct(n, total)}% — click to ${on ? 'remove from' : 'add to'} the filter`}>
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-3">
-                  <span className="icon-circle" style={{ background: 'var(--surface-2)', color: TIER_FILL[t], fontSize: 20 }}>
+                  <span className="icon-circle" style={{ background: 'var(--surface)', color: TIER_FILL[t], fontSize: 18 }}>
                     {TIER_ICON[t]}
                   </span>
                   <div className="text-[28px] font-bold leading-tight">{n}</div>
                 </div>
-                <span className="text-[12px] font-bold" style={{ color: 'var(--faint)' }}>{pct(n, total)}%</span>
+                <span className="text-[12px] font-bold" style={{ color: 'var(--faint)' }}>{pct(n, total)}%<br />of total</span>
               </div>
               <div className="text-[13px] font-bold mt-2" style={{ color: 'var(--head)' }}>{TIER_LABEL[t]}</div>
             </Link>
@@ -256,52 +255,36 @@ export default async function AnalyticsPage({
         })}
       </div>
 
-      <div className="grid lg:grid-cols-[1fr_320px] gap-4 mb-4">
-        {/* By industry — one tile each, a status bar standing in for the table. */}
+      <div className="grid lg:grid-cols-[1fr_340px] gap-4 mb-4 items-start">
+        {/* By industry — a tile grid, a single green bar standing in for a table. */}
         <div className="card p-4">
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-            <h2 className="text-[13px] font-bold" style={{ color: 'var(--head)' }}>By industry</h2>
-            <div className="flex items-center gap-3 text-[11px] font-semibold" style={{ color: 'var(--faint)' }}>
-              <span className="flex items-center gap-1.5"><span style={{ width: 8, height: 8, borderRadius: 2, background: TIER_FILL.onboarded, display: 'inline-block' }} />Onboarded</span>
-              <span className="flex items-center gap-1.5"><span style={{ width: 8, height: 8, borderRadius: 2, background: TIER_FILL.unverified, display: 'inline-block' }} />Unverified</span>
-              <span className="flex items-center gap-1.5"><span style={{ width: 8, height: 8, borderRadius: 2, background: TIER_FILL.verified, display: 'inline-block' }} />Verified</span>
-            </div>
+            <h2 className="text-[13px] font-bold flex items-center gap-2" style={{ color: 'var(--head)' }}>
+              <span className="icon-circle icon-blue" style={{ width: 28, height: 28, fontSize: 13 }}>🏭</span>
+              By Industry
+            </h2>
+            <span className="text-[11.5px] font-semibold" style={{ color: 'var(--faint)' }}>Share of total vendors</span>
           </div>
           <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
-            {industryOrder.map(code => {
-              const row = byIndustryTier.get(code) ?? { onboarded: 0, unverified: 0, verified: 0, total: 0 };
+            {industryRows.map(({ code, n }) => {
               const on = industries.includes(code);
               const label = code === 'unclassified' ? 'Others' : INDUSTRY_LABEL[code] ?? code;
               return (
                 <Link key={code} href={toggleIndustry(code)}
                       className={`card metric-box p-3 block ${on ? 'metric-box-selected' : ''}`}
-                      title={`${row.total} vendors — click to ${on ? 'remove from' : 'add to'} the filter`}>
+                      title={`${n} vendors — click to ${on ? 'remove from' : 'add to'} the filter`}>
                   <div className="flex items-center justify-between gap-2">
                     <span className="flex items-center gap-2 text-[13px] font-bold" style={{ color: 'var(--head)' }}>
-                      <span>{code === 'unclassified' ? '•••' : INDUSTRY_ICON[code]}</span>{label}
+                      <span className={`icon-circle ${INDUSTRY_CLASS[code]}`} style={{ width: 30, height: 30, fontSize: 14 }}>
+                        {INDUSTRY_ICON[code]}
+                      </span>
+                      {label}
                     </span>
-                    <span className="text-[16px] font-bold">{row.total}</span>
+                    <span style={{ color: 'var(--line-2)' }}>›</span>
                   </div>
-                  <StackBar row={row} />
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* By source — narrower column alongside, same tile pattern. */}
-        <div className="card p-4">
-          <h2 className="text-[13px] font-bold mb-3" style={{ color: 'var(--head)' }}>Onboarded from</h2>
-          <div className="flex flex-col gap-2">
-            {[...bySource.entries()].sort((a, b) => b[1] - a[1]).map(([k, n]) => {
-              const on = sources.includes(k);
-              return (
-                <Link key={k} href={toggleSource(k)}
-                      className={`card metric-box p-3 block ${on ? 'metric-box-selected' : ''}`}
-                      title={`${SOURCE_LABEL[k] ?? k} — click to ${on ? 'remove from' : 'add to'} the filter`}>
-                  <div className="flex items-center justify-between gap-2 text-[13px]">
-                    <span className="font-bold" style={{ color: 'var(--head)' }}>{SOURCE_SHORT[k] ?? k}</span>
-                    <span className="font-bold">{n} <span style={{ color: 'var(--faint)', fontWeight: 600 }}>· {pct(n, total)}%</span></span>
+                  <div className="flex items-baseline justify-between mt-2">
+                    <span className="text-[20px] font-bold">{n}</span>
+                    <span className="text-[11.5px] font-bold" style={{ color: 'var(--faint)' }}>{pct(n, total)}% of total</span>
                   </div>
                   <div className="h-[6px] rounded-full mt-2" style={{ background: 'var(--surface-2)' }}>
                     <div className="h-full rounded-full" style={{ width: `${pct(n, total)}%`, background: 'var(--p500)' }} />
@@ -309,6 +292,75 @@ export default async function AnalyticsPage({
                 </Link>
               );
             })}
+          </div>
+        </div>
+
+        {/* Right column — status breakdown, the same numbers as a donut, and
+            the one block that isn't a filter: look up a single contact. */}
+        <div className="flex flex-col gap-4">
+          <div className="card p-4">
+            <h2 className="text-[13px] font-bold mb-3" style={{ color: 'var(--head)' }}>Onboarding Status</h2>
+            <div className="flex flex-col gap-2">
+              {(['onboarded', 'unverified', 'verified'] as VendorTier[]).map(t => {
+                const on = tiers.includes(t);
+                const n = byTier.get(t) ?? 0;
+                return (
+                  <Link key={t} href={toggleTier(t)}
+                        className={`card metric-box p-3 block ${on ? 'metric-box-selected' : ''}`}
+                        title={`Click to ${on ? 'remove from' : 'add to'} the filter`}>
+                    <div className="flex items-center justify-between gap-2 text-[13px]">
+                      <span className="flex items-center gap-2 font-bold" style={{ color: 'var(--head)' }}>
+                        <span className="icon-circle" style={{ width: 22, height: 22, fontSize: 11, background: TIER_TINT[t], color: TIER_FILL[t] }}>{TIER_ICON[t]}</span>
+                        {TIER_LABEL[t]}
+                      </span>
+                      <span className="font-bold">{n} <span style={{ color: 'var(--faint)', fontWeight: 600 }}>· {pct(n, total)}%</span></span>
+                    </div>
+                    <div className="h-[6px] rounded-full mt-2" style={{ background: 'var(--surface-2)' }}>
+                      <div className="h-full rounded-full" style={{ width: `${pct(n, total)}%`, background: TIER_FILL[t] }} />
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="card p-4">
+            <h2 className="text-[13px] font-bold mb-3" style={{ color: 'var(--head)' }}>Vendor Industry Distribution</h2>
+            <div className="flex items-center gap-4">
+              <div style={{ position: 'relative', width: 128, height: 128, flexShrink: 0 }}>
+                <div style={{ width: '100%', height: '100%', borderRadius: '50%', background: donutGradient }} />
+                <div className="flex flex-col items-center justify-center text-center"
+                     style={{ position: 'absolute', inset: 22, borderRadius: '50%', background: 'var(--surface)' }}>
+                  <div className="text-[19px] font-bold leading-tight">{total}</div>
+                  <div className="text-[9.5px] font-semibold" style={{ color: 'var(--faint)' }}>Total Vendors</div>
+                </div>
+              </div>
+              <div className="flex flex-col gap-1.5 min-w-0">
+                {industryByCount.map(r => (
+                  <Link key={r.code} href={toggleIndustry(r.code)}
+                        className="flex items-center justify-between gap-3 text-[12px] hover:opacity-70"
+                        style={{ color: 'var(--head)' }}>
+                    <span className="flex items-center gap-1.5">
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: INDUSTRY_VAR[r.code], display: 'inline-block' }} />
+                      {r.code === 'unclassified' ? 'Others' : INDUSTRY_LABEL[r.code]}
+                    </span>
+                    <span className="font-bold whitespace-nowrap">{r.n} <span style={{ color: 'var(--faint)', fontWeight: 600 }}>({pct(r.n, total)}%)</span></span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="card p-4">
+            <h2 className="text-[13px] font-bold mb-3" style={{ color: 'var(--head)' }}>Find a contact</h2>
+            <PocPicker value={poc} options={pocOptions} />
+            {poc && (
+              <div className="card p-3 mt-3" style={{ background: 'var(--p50)' }}>
+                <div className="text-[12px] font-semibold" style={{ color: 'var(--faint)' }}>{poc}</div>
+                <div className="text-[24px] font-bold leading-tight mt-0.5">{selectedPocCount}</div>
+                <div className="text-[12px] font-bold" style={{ color: 'var(--head)' }}>Vendors onboarded</div>
+              </div>
+            )}
           </div>
         </div>
       </div>
