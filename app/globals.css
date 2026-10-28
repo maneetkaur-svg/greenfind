@@ -7,6 +7,12 @@
   --text:#343551; --head:#1A1C3C; --muted:#4D4F67; --faint:#67687D;
   --line:#E6E6E9; --line-2:#CCCDD4;
   --err:#EF4444; --err-l:#FEF2F2; --warn:#EAB308; --warn-l:#FEFCE8; --warn-d:#713F12;
+  /* Same hues as the icon-* badges (DashboardCard.tsx) — recycling blue,
+     transportation purple, packaging orange, warehouse teal, scrap trading
+     amber, others grey — reused as solid fills for the industry donut on
+     Analytics, so a given industry is always the same color everywhere. */
+  --ind-recycling:#3982E9; --ind-transportation:#8051DC; --ind-packaging:#EF8B12;
+  --ind-warehouse:#178D87; --ind-scrap:#B5650D; --ind-other:#5B687C;
 }
 
 /* Dark mode — same green brand accent throughout (--p500 is untouched), only
@@ -20,6 +26,8 @@
   --text:#CBD3CE; --head:#F1F5F2; --muted:#9FADA6; --faint:#74837B;
   --line:#26332C; --line-2:#35443B;
   --err:#F87171; --err-l:#3B1517; --warn:#FBBF24; --warn-l:#332B0C; --warn-d:#FDE68A;
+  --ind-recycling:#7FB0F5; --ind-transportation:#C4A4F7; --ind-packaging:#F5B15C;
+  --ind-warehouse:#5FD0C7; --ind-scrap:#F0B458; --ind-other:#A9B4C0;
 }
 :root[data-theme="dark"] .c-r { color: #FCA5A5; }
 :root[data-theme="dark"] .icon-green  { background: #113B22; color: #4ADE80; }
