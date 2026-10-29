@@ -42,6 +42,8 @@ body { background: var(--bg); color: var(--text); font-family: "DM Sans", -apple
 h1,h2,h3,h4 { color: var(--head); letter-spacing: -.02em; }
 
 .card    { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+.no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
 .btn     { display:inline-flex; align-items:center; gap:7px; border-radius:9px; padding:10px 17px;
            font-size:14px; font-weight:700; cursor:pointer; transition:.14s; border:1px solid transparent; }
 .btn-p   { background: var(--p500); color:#fff; }

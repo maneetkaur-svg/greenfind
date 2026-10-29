@@ -34,7 +34,7 @@ export default function ByGeography({ filters, byState, byRegion }: { filters: A
           {(['state', 'region'] as const).map(m => (
             <button key={m} type="button" onClick={() => { setMode(m); setExpanded(false); }}
                     className="px-2.5 py-1 text-[12px] font-semibold rounded-md"
-                    style={m === mode ? { background: 'var(--p500)', color: '#fff' } : { color: 'var(--faint)' }}>
+                    style={m === mode ? { background: 'var(--p50)', color: 'var(--p700)' } : { color: 'var(--faint)' }}>
               {m === 'state' ? 'State' : 'Region'}
             </button>
           ))}
