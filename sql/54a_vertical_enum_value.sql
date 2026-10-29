@@ -1,0 +1,14 @@
+-- Run this one BY ITSELF, same reason as sql/13 and sql/23: Postgres will not
+-- let a statement use a brand-new enum value in the same transaction that
+-- added it. Run sql/54b and sql/54c only after this is confirmed applied.
+--
+-- Adds a sixth industry, 'others', purely so the Analytics rebuild
+-- (sql/54b/54c, app/(app)/analytics) has a second real example of "a
+-- vertical with no service categories" alongside the existing Warehouse —
+-- nothing in the app currently offers 'others' as a choice (lib/constants.ts
+-- INDUSTRIES, every onboarding form's industry dropdown, and every SQL
+-- check of allowed industries are all left untouched), so no vendor can
+-- actually be created under it today. It exists purely as a vertical
+-- row with zero vendors and zero categories, same as Warehouse's own
+-- zero-categories case today.
+alter type industry_type add value if not exists 'others';
