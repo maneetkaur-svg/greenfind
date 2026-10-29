@@ -28,6 +28,13 @@ export type AnalyticsSummary = {
 export type TrendBucket = { bucket: string; count: number };
 export type TrendResponse = { granularity: 'daily' | 'weekly' | 'monthly'; buckets: TrendBucket[]; excluded_imports: number };
 
+/** 'unverified'/'verified' are approximated from audit_log (sql/54e) --
+ *  see that file's comment for exactly what they can and can't capture. */
+export type TrendMetric = 'onboarded' | 'unverified' | 'verified';
+export const METRIC_LABEL: Record<TrendMetric, string> = {
+  onboarded: 'Added', unverified: 'Became Unverified', verified: 'Became Verified',
+};
+
 export type VendorRow = {
   id: string; legal_name: string; city: string | null; state: string | null;
   core_complete: boolean; banking_complete: boolean; source: string | null; created_at: string;

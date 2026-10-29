@@ -278,14 +278,30 @@ revoke all on function public.analytics_summary(jsonb) from public;
 grant execute on function public.analytics_summary(jsonb) to authenticated;
 
 
--- Bucketed counts for the "Vendors added over time" chart. Every bucket in
--- the fixed window is present even at zero (generate_series), so a quiet
--- month still draws a bar. p_include_imports=false drops source='import'
--- entirely from the count UNLESS the filter set already pins source to
--- 'import' (the app forces the checkbox on and disables it in that case --
--- this is the matching server-side rule, so a direct call can't disagree
--- with what the UI shows).
-create or replace function public.analytics_trend(p jsonb, p_granularity text, p_include_imports boolean default false)
+-- Bucketed counts for the "Vendors onboarded timeline" chart. Every bucket
+-- in the fixed window is present even at zero (generate_series), so a
+-- quiet month still draws a bar. p_include_imports=false drops
+-- source='import' entirely from the count UNLESS the filter set already
+-- pins source to 'import' (the app forces the checkbox on and disables it
+-- in that case -- this is the matching server-side rule, so a direct call
+-- can't disagree with what the UI shows).
+--
+-- p_metric picks which event each site is bucketed by: 'onboarded'
+-- (ss.created_at, the original/default), 'unverified' or 'verified' (the
+-- approximated event timestamps from sql/54e's site_status_timestamps() --
+-- see that file's own comment for exactly what they do and don't capture).
+-- A site with a null event timestamp for the chosen metric (hasn't reached
+-- that milestone, or sql/54e hasn't been applied yet) is simply left out
+-- of every bucket, same as a row with no matching value anywhere else in
+-- this file.
+--
+-- Dropped and recreated rather than plain CREATE OR REPLACE: adding
+-- p_metric changes the parameter list, so CREATE OR REPLACE would create
+-- a second, 4-argument overload alongside the old 3-argument one instead
+-- of replacing it -- leaving two live versions and risking PostgREST
+-- picking the wrong one depending on which named arguments a caller sends.
+drop function if exists public.analytics_trend(jsonb, text, boolean);
+create or replace function public.analytics_trend(p jsonb, p_granularity text, p_include_imports boolean default false, p_metric text default 'onboarded')
 returns jsonb
 language plpgsql
 stable
@@ -301,6 +317,10 @@ declare
 begin
   if not public.is_admin() then
     raise exception 'Only a super admin can read analytics.';
+  end if;
+
+  if p_metric not in ('onboarded', 'unverified', 'verified') then
+    raise exception 'Unknown metric: %', p_metric;
   end if;
 
   case p_granularity
@@ -321,17 +341,24 @@ begin
 
   with
   eligible as (
-    select ss.created_at
+    select
+      case p_metric
+        when 'unverified' then ev.unverified_at
+        when 'verified' then ev.verified_at
+        else ss.created_at
+      end as event_at
     from public.analytics_filtered_sites(p, array['window']) f
     join public.site_summary ss on ss.id = f.site_id
+    left join public.site_status_timestamps() ev on ev.site_id = ss.id
     where not (v_drop_imports and ss.source = 'import')
   ),
   series as (
     select generate_series(v_from, date_trunc(v_trunc, timezone('Asia/Kolkata', now())), v_step)::date as bucket
   ),
   grouped as (
-    select date_trunc(v_trunc, timezone('Asia/Kolkata', created_at))::date as bucket, count(*) as cnt
+    select date_trunc(v_trunc, timezone('Asia/Kolkata', event_at))::date as bucket, count(*) as cnt
     from eligible
+    where event_at is not null
     group by 1
   ),
   excluded as (
@@ -354,8 +381,8 @@ begin
 end;
 $$;
 
-revoke all on function public.analytics_trend(jsonb, text, boolean) from public;
-grant execute on function public.analytics_trend(jsonb, text, boolean) to authenticated;
+revoke all on function public.analytics_trend(jsonb, text, boolean, text) from public;
+grant execute on function public.analytics_trend(jsonb, text, boolean, text) to authenticated;
 
 
 -- Paged rows for the vendor drawer (and, with p_page_size null, the CSV

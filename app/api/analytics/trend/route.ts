@@ -16,6 +16,9 @@ export async function GET(request: NextRequest) {
   if (!['daily', 'weekly', 'monthly'].includes(granularity))
     return NextResponse.json({ error: 'granularity must be daily, weekly or monthly.' }, { status: 400 });
   const includeImports = searchParams.get('includeImports') === '1';
+  const metric = searchParams.get('metric') ?? 'onboarded';
+  if (!['onboarded', 'unverified', 'verified'].includes(metric))
+    return NextResponse.json({ error: 'metric must be onboarded, unverified or verified.' }, { status: 400 });
 
   // The chart's own vertical dropdown already overrides the page's vertical
   // filter client-side (TrendChart.tsx computes effectiveVertical and sends
@@ -24,7 +27,7 @@ export async function GET(request: NextRequest) {
 
   const supabase = await createClient();
   const { data, error } = await supabase.rpc('analytics_trend', {
-    p: filtersToJsonb(filters), p_granularity: granularity, p_include_imports: includeImports,
+    p: filtersToJsonb(filters), p_granularity: granularity, p_include_imports: includeImports, p_metric: metric,
   });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data);
