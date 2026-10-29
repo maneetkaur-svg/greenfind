@@ -8,6 +8,7 @@ import FilterBar from './FilterBar';
 import KpiBand from './KpiBand';
 import TrendChart from './TrendChart';
 import BySourceTable from './BySourceTable';
+import VerticalDonut from './VerticalDonut';
 import VerticalCategoryTable from './VerticalCategoryTable';
 import ByGeography from './ByGeography';
 import VendorDrawer from './VendorDrawer';
@@ -79,7 +80,10 @@ export default async function AnalyticsPage({
 
       <div className="grid lg:grid-cols-[1fr_340px] gap-4 mb-4 items-start">
         <TrendChart filters={filters} taxonomy={taxonomy} />
-        <BySourceTable rows={summary.by_source} total={total} filters={filters} />
+        <div className="flex flex-col gap-4">
+          <BySourceTable rows={summary.by_source} total={total} filters={filters} />
+          <VerticalDonut filters={filters} byVertical={summary.by_vertical} total={total} />
+        </div>
       </div>
 
       <div className="grid lg:grid-cols-[1fr_340px] gap-4 mb-4 items-start">
