@@ -70,7 +70,7 @@ export default function TrendChart({ filters, taxonomy }: { filters: AnalyticsFi
     const drawerFilters = withFilters(filters, { vertical: effectiveVertical || null, window: null });
     const href = buildDrawerHref(pageHref, {
       label: bucketLabel(bucket, g),
-      breadcrumb: 'Vendors added over time',
+      breadcrumb: 'Vendors onboarded timeline',
       filters: drawerFilters,
       from: bucket, to: bucketEnd(bucket, g),
     });
@@ -81,7 +81,7 @@ export default function TrendChart({ filters, taxonomy }: { filters: AnalyticsFi
     <div className="card p-4" style={{ opacity: loading && data ? 0.5 : 1, transition: 'opacity .15s' }}>
       <div className="flex items-start justify-between flex-wrap gap-3 mb-1">
         <div>
-          <h2 className="text-[15px] font-bold" style={{ color: 'var(--head)' }}>Vendors added over time</h2>
+          <h2 className="text-[15px] font-bold" style={{ color: 'var(--head)' }}>Vendors onboarded timeline</h2>
           <p className="text-[13px]" style={{ color: 'var(--faint)' }}>
             {addedCount} added in the window shown{!includeImports && !forcedImports && data && data.excluded_imports > 0
               ? `, excluding ${data.excluded_imports} bulk-imported` : ''}
