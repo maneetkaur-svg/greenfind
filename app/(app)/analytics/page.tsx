@@ -75,7 +75,7 @@ export default async function AnalyticsPage({
         <a href={`/api/analytics/vendors?${exportParams.toString()}`} className="btn btn-o">Export CSV</a>
       </div>
 
-      <FilterBar filters={filters} taxonomy={taxonomy} byState={summary.by_state} byCity={summary.by_city} />
+      <FilterBar filters={filters} taxonomy={taxonomy} byState={summary.by_state} byRegion={summary.by_region} />
       <KpiBand kpi={summary.kpi} monthLabel={monthLabel} />
 
       <div className="grid lg:grid-cols-[1fr_340px] gap-4 mb-4 items-start">
@@ -91,7 +91,7 @@ export default async function AnalyticsPage({
           filters={filters} taxonomy={taxonomy} total={total}
           byVertical={summary.by_vertical} byCategory={summary.by_category} bySubcategory={summary.by_subcategory}
         />
-        <ByGeography filters={filters} byState={summary.by_state} byCity={summary.by_city} />
+        <ByGeography filters={filters} byState={summary.by_state} byRegion={summary.by_region} />
       </div>
 
       {gaps && (

@@ -9,7 +9,8 @@
 --   category      service_category.id
 --   subcategory   service_subcategory.id
 --   state         vendor_site.state
---   city          vendor_site.city
+--   region        site_summary.region (sql/54d) -- north/south/east/west/
+--                 northeast/pan_india/outside_india
 --   source        vendor_source code, e.g. "import"
 --   addedBy       profile.id, or the literal string "external" for a
 --                 vendor with no staff attribution (created_by is null)
@@ -19,7 +20,7 @@
 -- set of matching site ids; p_ignore names which of the keys above to skip,
 -- which is how "this table's own filter doesn't zero out its own rows"
 -- (the by-source table ignoring Source, a vertical tab ignoring vertical/
--- category/subcategory, by-geography ignoring state/city) is implemented
+-- category/subcategory, by-geography ignoring state/region) is implemented
 -- once, correctly, instead of six times with six chances to drift apart.
 create or replace function public.analytics_filtered_sites(p jsonb, p_ignore text[] default '{}')
 returns table (site_id uuid)
@@ -39,7 +40,7 @@ as $$
       'state' = any(p_ignore) or p->>'state' is null or ss.state = p->>'state'
     )
     and (
-      'city' = any(p_ignore) or p->>'city' is null or ss.city = p->>'city'
+      'region' = any(p_ignore) or p->>'region' is null or ss.region = p->>'region'
     )
     and (
       'source' = any(p_ignore) or p->>'source' is null
@@ -137,7 +138,7 @@ grant execute on function public.analytics_taxonomy() to authenticated;
 
 -- One call, everything the dashboard needs: KPIs, by-source, by-vertical
 -- (tab counts), by-category/sub-category for whichever vertical is active,
--- and by-state/by-city -- each computed with its own ignore-list per the
+-- and by-state/by-region -- each computed with its own ignore-list per the
 -- rules in the comment above analytics_filtered_sites.
 create or replace function public.analytics_summary(p jsonb)
 returns jsonb
@@ -169,10 +170,10 @@ begin
     join public.site_summary ss on ss.id = f.site_id
   ),
   state_sites as (
-    select ss.* from public.analytics_filtered_sites(p, array['state','city']) f join public.site_summary ss on ss.id = f.site_id
+    select ss.* from public.analytics_filtered_sites(p, array['state','region']) f join public.site_summary ss on ss.id = f.site_id
   ),
-  city_sites as (
-    select ss.* from public.analytics_filtered_sites(p, array['city']) f join public.site_summary ss on ss.id = f.site_id
+  region_sites as (
+    select ss.* from public.analytics_filtered_sites(p, array['region']) f join public.site_summary ss on ss.id = f.site_id
   ),
   active_vertical as (
     select (p->>'vertical')::industry_type as code
@@ -254,9 +255,18 @@ begin
       select coalesce(jsonb_agg(jsonb_build_object('state', state, 'count', cnt) order by cnt desc), '[]'::jsonb)
       from (select state, count(*) as cnt from state_sites group by state) t
     ),
-    'by_city', (
-      select coalesce(jsonb_agg(jsonb_build_object('city', city, 'count', cnt) order by cnt desc), '[]'::jsonb)
-      from (select city, count(*) as cnt from city_sites group by city) t
+    'by_region', (
+      select coalesce(jsonb_agg(jsonb_build_object(
+        'region', region,
+        'label', case region
+          when 'north' then 'North' when 'south' then 'South' when 'east' then 'East'
+          when 'west' then 'West' when 'northeast' then 'North East'
+          when 'pan_india' then 'Pan India' when 'outside_india' then 'Outside India'
+          else region
+        end,
+        'count', cnt
+      ) order by cnt desc), '[]'::jsonb)
+      from (select region, count(*) as cnt from region_sites where region is not null group by region) t
     )
   ) into result;
 
