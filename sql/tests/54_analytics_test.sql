@@ -1,6 +1,6 @@
 -- ============================================================
--- TEST for sql/54a/54b/54c — run in the Supabase SQL Editor on STAGING,
--- after all three have been applied there.
+-- TEST for sql/54a-e — run in the Supabase SQL Editor on STAGING, after
+-- all of them have been applied there.
 --
 -- Every analytics_* function is security definer and starts with
 -- `if not public.is_admin() then raise exception`, which reads
@@ -253,7 +253,32 @@ begin
   raise notice 'ok   - a vertical with no categories (Warehouse) is an empty array, not an error';
 end $$;
 
--- 10. A non-admin is refused. Impersonates a real, already-existing
+-- 10. site_status_timestamps() (sql/54e) runs without error, and our three
+--     test sites -- which never got a contact, a service category (beyond
+--     one recycling site), banking details, or any site_document -- are
+--     correctly NOT YET unverified or verified (both null), not some
+--     false-positive timestamp. analytics_trend also accepts the new
+--     p_metric argument without erroring.
+do $$
+declare v_not_null_count int; v_trend jsonb;
+begin
+  select count(*) into v_not_null_count
+  from public.site_status_timestamps() ev
+  join public.vendor_site s on s.id = ev.site_id
+  where s.site_code like 'ZZ-A54-%' and (ev.unverified_at is not null or ev.verified_at is not null);
+  if v_not_null_count <> 0 then
+    raise exception 'FAIL - % incomplete test site(s) show a non-null unverified_at/verified_at', v_not_null_count;
+  end if;
+  raise notice 'ok   - site_status_timestamps() correctly shows null for sites that are not yet complete';
+
+  select public.analytics_trend(jsonb_build_object('state', 'Rajasthan'), 'monthly', false, 'verified') into v_trend;
+  if (v_trend->'buckets') is null then
+    raise exception 'FAIL - analytics_trend with p_metric=verified did not return a buckets array';
+  end if;
+  raise notice 'ok   - analytics_trend accepts p_metric without erroring';
+end $$;
+
+-- 11. A non-admin is refused. Impersonates a real, already-existing
 --     non-super_admin profile rather than inserting one (same FK reason as
 --     the admin/staff lookups above); skips if this environment somehow
 --     has only super_admin profiles.
