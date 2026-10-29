@@ -79,6 +79,8 @@ export default function FullOnboardForm({ cats, docRules }: { cats: Cat[]; docRu
   const [issues, setIssues] = useState<Issue[]>([]);
   const [result, setResult] = useState<{ companyCode: string; siteCode: string } | null>(null);
   const [step, setStep] = useState(0);
+  const [started, setStarted] = useState(false);
+  const [docsReady, setDocsReady] = useState(false);
 
   const pan = panFromGstin(gstin);
   const gstState = stateFromGstin(gstin);
@@ -333,6 +335,76 @@ export default function FullOnboardForm({ cats, docRules }: { cats: Cat[]; docRu
       setError(`Saved, but some documents did not upload: ${failed.join(' · ')}. Our team will follow up for them.`);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  /** A one-screen gate in front of the form itself — same URL, no route
+   *  change, just what renders first. Sets expectations (what this does,
+   *  how long it takes, what to have ready) before the eleven-step form
+   *  starts, so nobody gets three sections in before realising they need
+   *  their GST certificate. */
+  if (!started) {
+    return (
+      <div className="card p-7 md:p-9" style={{ maxWidth: 640, margin: '0 auto' }}>
+        <div className="text-[34px] mb-2">🤝</div>
+        <h1 className="text-[22px] font-bold mb-2" style={{ letterSpacing: '-.01em' }}>
+          Complete vendor onboarding
+        </h1>
+        <p className="text-[13.5px] mb-5" style={{ color: 'var(--muted)' }}>
+          This form onboards your company onto the Fitsol / GreenFind vendor marketplace.
+          Once submitted, our team reviews and verifies your details — after verification,
+          you&apos;ll start receiving RFQs (requests for quotes) directly, so keep an eye on
+          your <b>email and WhatsApp</b>.
+        </p>
+
+        <div className="card p-4 mb-4 flex items-center gap-3" style={{ background: 'var(--p50)', borderColor: 'var(--p100)' }}>
+          <span className="text-[22px]">⏱️</span>
+          <div>
+            <div className="text-[13.5px] font-bold" style={{ color: 'var(--head)' }}>About 15–20 minutes</div>
+            <div className="text-[12px]" style={{ color: 'var(--faint)' }}>Company, facility, contacts, banking, agreements and documents — in one sitting.</div>
+          </div>
+        </div>
+
+        <div className="card p-4 mb-5" style={{ background: 'var(--surface-2)' }}>
+          <div className="text-[13.5px] font-bold mb-3 flex items-center gap-2" style={{ color: 'var(--head)' }}>
+            <span className="text-[18px]">📄</span> Keep these documents ready to upload
+          </div>
+          <ul className="flex flex-col gap-2">
+            {[
+              ['GST certificate', 'Required', 'c-r'],
+              ['PAN card', 'Required', 'c-r'],
+              ['Udyam / MSME certificate', 'If MSME-registered', 'c-a'],
+              ['Consent to Operate (CTO) certificate', 'Recycling & scrap trading only', 'c-a'],
+              ['EPR / PWP registration certificate', 'Recycling & scrap trading only', 'c-a'],
+            ].map(([label, note, cls]) => (
+              <li key={label} className="flex items-center justify-between gap-3 text-[13px]">
+                <span style={{ color: 'var(--head)' }}>{label}</span>
+                <span className={`chip ${cls}`} style={{ whiteSpace: 'nowrap' }}>{note}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="text-[12px] mt-3" style={{ color: 'var(--faint)' }}>
+            Good to also have, if available: a cancelled cheque, a signed NDA, and a company profile or brochure.
+          </p>
+        </div>
+
+        <label className="flex items-start gap-2 text-[13.5px] mb-5" style={{ cursor: 'pointer' }}>
+          <input type="checkbox" checked={docsReady} onChange={e => setDocsReady(e.target.checked)}
+                 style={{ width: 'auto', marginTop: 2 }} />
+          I have these documents ready to upload.
+        </label>
+
+        <button type="button" className="btn btn-p w-full" disabled={!docsReady}
+                style={!docsReady ? { opacity: .5, cursor: 'not-allowed' } : undefined}
+                onClick={() => { setStarted(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
+          Proceed to the form
+        </button>
+
+        <p className="text-[12.5px] text-center mt-4" style={{ color: 'var(--faint)' }}>
+          In a hurry instead? Use the <a href="/onboard" style={{ color: 'var(--p600)', fontWeight: 600 }}>quick sign-up</a> and
+          our team will follow up for the rest.
+        </p>
+      </div>
+    );
+  }
 
   if (result) {
     return (
