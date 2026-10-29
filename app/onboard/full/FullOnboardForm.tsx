@@ -344,7 +344,6 @@ export default function FullOnboardForm({ cats, docRules }: { cats: Cat[]; docRu
   if (!started) {
     return (
       <div className="card p-7 md:p-9" style={{ maxWidth: 640, margin: '0 auto' }}>
-        <div className="text-[34px] mb-2">🤝</div>
         <h1 className="text-[22px] font-bold mb-2" style={{ letterSpacing: '-.01em' }}>
           Complete vendor onboarding
         </h1>
