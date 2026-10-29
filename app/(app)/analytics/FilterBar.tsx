@@ -123,7 +123,7 @@ export default function FilterBar({
 
   if (!expanded) {
     return (
-      <div className="card p-3 mb-4 flex items-center gap-3 no-scrollbar" style={{ overflowX: 'auto' }}>
+      <div className="card p-3 mb-3 flex items-center gap-3 no-scrollbar" style={{ overflowX: 'auto' }}>
         {fields}
         <span className="flex items-center gap-3 ml-auto shrink-0">
           {resetBtn}
@@ -134,7 +134,7 @@ export default function FilterBar({
   }
 
   return (
-    <div className="card p-3 mb-4">
+    <div className="card p-3 mb-3">
       <div className="flex items-center gap-3 flex-wrap">{fields}</div>
       <div className="flex items-center justify-end gap-3 mt-3 pt-3" style={{ borderTop: '1px solid var(--line)' }}>
         {resetBtn}

@@ -18,7 +18,7 @@ export default function KpiBand({ kpi, monthLabel }: { kpi: Kpi; monthLabel: str
   );
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
       {tile('#F0824A', 'Total vendors', kpi.total, kpi.added_this_month ? `+${kpi.added_this_month} added in ${monthLabel}` : `Added in ${monthLabel}`)}
       {tile('var(--warn)', 'Onboarded', kpi.onboarded, `${pctLabel(kpi.onboarded, kpi.total)} of total`)}
       {tile('var(--p300)', 'Verified', kpi.verified, `${pctLabel(kpi.verified, kpi.total)} of total`)}
