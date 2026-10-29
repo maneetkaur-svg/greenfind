@@ -2,7 +2,6 @@ import Link from 'next/link';
 import type { AnalyticsFilters } from '@/lib/analyticsFilters';
 import { buildHref } from '@/lib/analyticsFilters';
 import type { VerticalRow } from '@/lib/analyticsTypes';
-import { pctLabel } from '@/lib/analyticsTypes';
 
 // Same hues as the old Analytics page's industry donut and the vendor
 // list's own icon-* badges (DashboardCard.tsx) -- a vertical is always the
@@ -58,9 +57,7 @@ export default function VerticalDonut({
                     <span style={{ width: 8, height: 8, borderRadius: '50%', background: colorFor(v.id), display: 'inline-block', flexShrink: 0 }} />
                     <span className="truncate">{v.label}</span>
                   </span>
-                  <span className="font-bold whitespace-nowrap">
-                    {v.count} <span style={{ color: 'var(--faint)', fontWeight: 600 }}>({pctLabel(v.count, total)})</span>
-                  </span>
+                  <span className="font-bold whitespace-nowrap">{v.count}</span>
                 </Link>
               );
             })}
