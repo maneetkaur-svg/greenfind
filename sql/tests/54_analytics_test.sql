@@ -54,22 +54,27 @@ begin
   end if;
   perform set_config('zz.dbtest_staff', v_staff::text, true);
 
+  -- company.pan is char(10), checked against ^[A-Z]{5}[0-9]{4}[A-Z]$
+  -- (01_schema.sql); vendor_site.pan is GENERATED from substring(gstin, 3,
+  -- 10) and must match the company's own pan exactly (the composite FK a
+  -- few lines below), so each gstin here is built as
+  -- <2-digit state code><that company's pan><entity digit><Z><checksum>.
   insert into public.company (company_code, pan, legal_name)
-  values ('ZZ-A54-1', 'ZZAT549991A', 'ZZ DBTEST Recyc Co')
+  values ('ZZ-A54-1', 'ZZTPK1234A', 'ZZ DBTEST Recyc Co')
   returning id into v_co1;
   insert into public.company (company_code, pan, legal_name)
-  values ('ZZ-A54-2', 'ZZAT549992B', 'ZZ DBTEST Pack Co')
+  values ('ZZ-A54-2', 'ZZTPK5678B', 'ZZ DBTEST Pack Co')
   returning id into v_co2;
 
   insert into public.vendor_site (
     company_id, site_code, gstin, industry, address_line1, city, state, pincode,
     source, created_by, created_at
   ) values
-    (v_co1, 'ZZ-A54-1-A', '08ZZAT549991A1ZA', 'recycling', 'x', 'Jaipur', 'Rajasthan', '302001',
+    (v_co1, 'ZZ-A54-1-A', '08ZZTPK1234A1Z5', 'recycling', 'x', 'Jaipur', 'Rajasthan', '302001',
      'import', v_staff, now() - interval '20 days'),
-    (v_co1, 'ZZ-A54-1-B', '08ZZAT549991A1ZB', 'recycling', 'x', 'Jaipur', 'Rajasthan', '302001',
+    (v_co1, 'ZZ-A54-1-B', '08ZZTPK1234A1Z6', 'recycling', 'x', 'Jaipur', 'Rajasthan', '302001',
      'import', v_staff, now() - interval '11 months'),
-    (v_co2, 'ZZ-A54-2-A', '24ZZAT549992B1ZC', 'packaging', 'x', 'Surat', 'Gujarat', '395001',
+    (v_co2, 'ZZ-A54-2-A', '24ZZTPK5678B1Z3', 'packaging', 'x', 'Surat', 'Gujarat', '395001',
      'manual', null, now() - interval '5 days');
 
   select id into v_cat from public.service_category where industry = 'recycling' limit 1;
