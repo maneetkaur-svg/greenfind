@@ -63,7 +63,7 @@ export default function DashboardCard({
             <span className="icon-circle icon-green">🏢</span>
             <div className="text-[24px] font-bold leading-tight" data-testid="dash-active">{total?.vendors ?? 0}</div>
           </div>
-          <div className="text-[13px] font-bold mt-3" style={{ color: 'var(--head)' }}>Total Vendors</div>
+          <div className="text-[13px] font-bold mt-3" style={{ color: 'var(--head)' }}>Total Companies</div>
         </div>
         {byInd.map(r => {
           const m = META[r.industry];
