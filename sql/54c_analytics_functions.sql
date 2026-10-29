@@ -177,6 +177,15 @@ begin
   active_vertical as (
     select (p->>'vertical')::industry_type as code
   ),
+  vertical_counts as (
+    select
+      v.code, v.label, v.sort_order, v.is_active,
+      count(vs.id) as cnt,
+      count(vs.id) filter (where vs.core_complete and vs.banking_complete) as verified_cnt
+    from public.vertical v
+    left join vertical_sites vs on vs.industry = v.code
+    group by v.code, v.label, v.sort_order, v.is_active
+  ),
   category_counts as (
     select
       cat.id, cat.label, cat.sort, cat.is_active,
@@ -219,12 +228,10 @@ begin
     ),
     'by_vertical', (
       select coalesce(jsonb_agg(jsonb_build_object(
-        'id', v.code, 'label', v.label, 'is_active', v.is_active,
-        'count', count(vs.id), 'verified', count(vs.id) filter (where vs.core_complete and vs.banking_complete)
-      ) order by v.sort_order), '[]'::jsonb)
-      from public.vertical v
-      left join vertical_sites vs on vs.industry = v.code
-      group by v.code, v.label, v.sort_order, v.is_active
+        'id', code, 'label', label, 'is_active', is_active,
+        'count', cnt, 'verified', verified_cnt
+      ) order by sort_order), '[]'::jsonb)
+      from vertical_counts
     ),
     'by_category', (
       select coalesce(jsonb_agg(jsonb_build_object(
