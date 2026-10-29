@@ -1,4 +1,5 @@
 'use client';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { AnalyticsFilters } from '@/lib/analyticsFilters';
 import { buildHref, SOURCE_LABEL, WINDOW_LABEL } from '@/lib/analyticsFilters';
@@ -6,10 +7,16 @@ import type { Taxonomy, GeoRow } from '@/lib/analyticsTypes';
 
 const sel = { fontSize: 13, padding: '7px 10px', minWidth: 120 } as const;
 
+/** Collapsed by default to a single scrollable line (eight selects is a lot
+ *  of vertical real estate to spend before you've even looked at the data);
+ *  "View more" expands it back to the full wrapped grid, "View less"
+ *  collapses it again. The filters themselves don't change between the two
+ *  -- only whether the row wraps or scrolls. */
 export default function FilterBar({
   filters, taxonomy, byState, byCity,
 }: { filters: AnalyticsFilters; taxonomy: Taxonomy; byState: GeoRow[]; byCity: GeoRow[] }) {
   const router = useRouter();
+  const [expanded, setExpanded] = useState(false);
   const go = (changes: Partial<Record<keyof AnalyticsFilters, string | null>>) => router.push(buildHref(filters, changes));
 
   const vertical = taxonomy.verticals.find(v => v.id === filters.vertical);
@@ -27,14 +34,14 @@ export default function FilterBar({
   const hasFilters = Object.values(filters).some(Boolean);
 
   const field = (label: string, children: React.ReactNode) => (
-    <label className="flex items-center gap-2 text-[13px]" style={{ color: 'var(--muted)' }}>
+    <label className="flex items-center gap-2 text-[13px] shrink-0" style={{ color: 'var(--muted)' }}>
       {label}
       {children}
     </label>
   );
 
-  return (
-    <div className="card p-3 mb-4 flex items-center gap-3 flex-wrap">
+  const fields = (
+    <>
       {field('Vertical', (
         <select style={sel} value={filters.vertical ?? ''}
                 onChange={e => go({ vertical: e.target.value || null, category: null, subcategory: null })}>
@@ -96,13 +103,43 @@ export default function FilterBar({
           {Object.entries(WINDOW_LABEL).map(([code, label]) => <option key={code} value={code}>{label}</option>)}
         </select>
       ))}
+    </>
+  );
 
-      {hasFilters && (
-        <button type="button" onClick={() => router.push('/analytics')}
-                className="text-[12.5px] font-semibold ml-auto" style={{ color: 'var(--p600)' }}>
-          Reset
-        </button>
-      )}
+  const resetBtn = hasFilters && (
+    <button type="button" onClick={() => router.push('/analytics')}
+            className="text-[12.5px] font-semibold shrink-0" style={{ color: 'var(--p600)' }}>
+      Reset
+    </button>
+  );
+
+  const toggleBtn = (
+    <button type="button" onClick={() => setExpanded(e => !e)}
+            className="text-[12px] font-semibold shrink-0 flex items-center gap-1" style={{ color: 'var(--p600)' }}>
+      {expanded ? 'View less' : 'View more'}
+      <span style={{ fontSize: 9 }}>{expanded ? '▲' : '▼'}</span>
+    </button>
+  );
+
+  if (!expanded) {
+    return (
+      <div className="card p-3 mb-4 flex items-center gap-3" style={{ overflowX: 'auto' }}>
+        {fields}
+        <span className="flex items-center gap-3 ml-auto shrink-0">
+          {resetBtn}
+          {toggleBtn}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="card p-3 mb-4">
+      <div className="flex items-center gap-3 flex-wrap">{fields}</div>
+      <div className="flex items-center justify-end gap-3 mt-3 pt-3" style={{ borderTop: '1px solid var(--line)' }}>
+        {resetBtn}
+        {toggleBtn}
+      </div>
     </div>
   );
 }
