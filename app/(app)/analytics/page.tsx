@@ -79,19 +79,18 @@ export default async function AnalyticsPage({
       <KpiBand kpi={summary.kpi} monthLabel={monthLabel} />
 
       <div className="grid lg:grid-cols-[1fr_340px] gap-4 mb-4 items-start">
-        <TrendChart filters={filters} taxonomy={taxonomy} />
+        <div className="flex flex-col gap-4">
+          <TrendChart filters={filters} taxonomy={taxonomy} />
+          <VerticalCategoryTable
+            filters={filters} taxonomy={taxonomy} total={total}
+            byVertical={summary.by_vertical} byCategory={summary.by_category} bySubcategory={summary.by_subcategory}
+          />
+        </div>
         <div className="flex flex-col gap-4">
           <VerticalDonut filters={filters} byVertical={summary.by_vertical} total={total} />
           <BySourceTable rows={summary.by_source} total={total} filters={filters} />
+          <ByGeography filters={filters} byState={summary.by_state} byRegion={summary.by_region ?? []} />
         </div>
-      </div>
-
-      <div className="grid lg:grid-cols-[1fr_340px] gap-4 mb-4 items-start">
-        <VerticalCategoryTable
-          filters={filters} taxonomy={taxonomy} total={total}
-          byVertical={summary.by_vertical} byCategory={summary.by_category} bySubcategory={summary.by_subcategory}
-        />
-        <ByGeography filters={filters} byState={summary.by_state} byRegion={summary.by_region ?? []} />
       </div>
 
       {gaps && (
