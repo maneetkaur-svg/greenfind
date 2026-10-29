@@ -6,7 +6,7 @@ import { buildHref } from '@/lib/analyticsFilters';
 import type { GeoRow, RegionRow } from '@/lib/analyticsTypes';
 
 const nf = new Intl.NumberFormat('en-IN');
-const TOP = 8;
+const TOP = 5;
 
 /** Both breakdowns are already in the page's one summary call (State mode
  *  ignores the State and Region filters on itself, Region mode ignores only
@@ -22,8 +22,6 @@ export default function ByGeography({ filters, byState, byRegion }: { filters: A
     : byRegion.map(r => ({ value: r.region, label: r.label, count: r.count }));
   const sorted = [...rows].sort((a, b) => b.count - a.count);
   const shown = expanded ? sorted : sorted.slice(0, TOP);
-  const rest = sorted.slice(TOP);
-  const restTotal = rest.reduce((s, r) => s + r.count, 0);
   const activeValue = mode === 'state' ? filters.state : filters.region;
 
   return (
@@ -62,12 +60,6 @@ export default function ByGeography({ filters, byState, byRegion }: { filters: A
               </tr>
             );
           })}
-          {!expanded && rest.length > 0 && (
-            <tr>
-              <td className="py-1.5" style={{ borderTop: '1px solid var(--line)', color: 'var(--faint)' }}>{rest.length} other {mode === 'state' ? 'states' : 'regions'}</td>
-              <td className="text-right py-1.5" style={{ borderTop: '1px solid var(--line)', color: 'var(--faint)' }}>{nf.format(restTotal)}</td>
-            </tr>
-          )}
           {sorted.length === 0 && (
             <tr><td colSpan={2} className="py-4 text-center" style={{ color: 'var(--faint)' }}>No vendors match.</td></tr>
           )}
