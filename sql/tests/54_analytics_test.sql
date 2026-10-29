@@ -5,10 +5,18 @@
 -- Every analytics_* function is security definer and starts with
 -- `if not public.is_admin() then raise exception`, which reads
 -- auth.uid() -- empty when this script runs as the SQL Editor's own
--- postgres role. The set_config() call below fakes a real super_admin
--- JWT for the rest of this transaction, the same trick Supabase's own
--- docs use for testing RLS from the SQL Editor. rollback at the end
--- undoes the fake profile, the fake JWT, and every test row.
+-- postgres role. The set_config() call below fakes a real JWT for the
+-- rest of this transaction, the same trick Supabase's own docs use for
+-- testing RLS from the SQL Editor.
+--
+-- public.profile.id is a foreign key into auth.users (01_schema.sql), so
+-- this test impersonates REAL, already-existing profiles rather than
+-- inserting fake ones -- a fake row here would fail that FK (or, if you
+-- worked around it by faking auth.users too, would leave a login-capable
+-- ghost user behind). It needs at least one real super_admin profile to
+-- run at all, and gets more complete coverage with a second, non-admin
+-- profile; either way, rollback at the end undoes every test row (ZZ-A54-*)
+-- and leaves every real profile exactly as it was.
 --
 -- Success: the last message says "ALL CHECKS PASSED".
 -- Failure: it stops at the first broken rule and names it.
@@ -16,26 +24,35 @@
 begin;
 
 do $$
-declare v_admin uuid := gen_random_uuid();
+declare v_admin uuid;
 begin
-  insert into public.profile (id, full_name, email, role)
-  values (v_admin, 'ZZ DBTEST Admin', 'zz-dbtest-admin@example.com', 'super_admin');
+  select id into v_admin from public.profile where role = 'super_admin' and is_active limit 1;
+  if v_admin is null then
+    raise exception 'FAIL - no active super_admin profile exists in this environment to run this test as';
+  end if;
   perform set_config('request.jwt.claim.sub', v_admin::text, true);
+  perform set_config('zz.dbtest_admin', v_admin::text, true);
   set local role authenticated;
 end $$;
 
 -- Two companies, three sites: two in Recycling/Rajasthan/import (one last
 -- month, one eleven months ago), one in Packaging/Gujarat/manual, created
--- by a second (non-admin) profile so the "addedBy" filter has something
--- real to match against.
+-- by a real profile (any other than the admin above, if one exists) so the
+-- "addedBy" filter has something real to match against.
 do $$
 declare
-  v_staff  uuid := gen_random_uuid();
+  v_staff  uuid;
   v_co1    uuid; v_co2 uuid;
   v_cat    uuid;
 begin
-  insert into public.profile (id, full_name, email, role)
-  values (v_staff, 'ZZ DBTEST Staff', 'zz-dbtest-staff@example.com', 'operations');
+  select id into v_staff from public.profile
+  where is_active and id <> current_setting('zz.dbtest_admin')::uuid
+  limit 1;
+  if v_staff is null then
+    v_staff := current_setting('zz.dbtest_admin')::uuid;
+    raise notice 'note - only one active profile exists in this environment; reusing it to attribute the test sites';
+  end if;
+  perform set_config('zz.dbtest_staff', v_staff::text, true);
 
   insert into public.company (company_code, pan, legal_name)
   values ('ZZ-A54-1', 'ZZAT549991A', 'ZZ DBTEST Recyc Co')
@@ -168,12 +185,14 @@ begin
 end $$;
 
 -- 7. addedBy: the staff id finds both Rajasthan sites; 'external' finds
---    the Gujarat site (created_by is null).
+--    the Gujarat site (created_by is null). Scoped to state=Rajasthan /
+--    Gujarat respectively, same as every other check here, because the
+--    staff id is a REAL profile (see the note at the top of this file) and
+--    may already be attributed to unrelated real vendors elsewhere.
 do $$
-declare v_staff_id uuid; v_by_staff int; v_external int;
+declare v_staff_id uuid := current_setting('zz.dbtest_staff')::uuid; v_by_staff int; v_external int;
 begin
-  select id into v_staff_id from public.profile where email = 'zz-dbtest-staff@example.com';
-  select (public.analytics_summary(jsonb_build_object('addedBy', v_staff_id::text))->'kpi'->>'total')::int
+  select (public.analytics_summary(jsonb_build_object('addedBy', v_staff_id::text, 'state', 'Rajasthan'))->'kpi'->>'total')::int
     into v_by_staff;
   select (public.analytics_summary(jsonb_build_object('addedBy', 'external', 'state', 'Gujarat'))->'kpi'->>'total')::int
     into v_external;
@@ -217,15 +236,22 @@ begin
   raise notice 'ok   - a vertical with no categories (Warehouse) is an empty array, not an error';
 end $$;
 
--- 10. A non-admin is refused.
+-- 10. A non-admin is refused. Impersonates a real, already-existing
+--     non-super_admin profile rather than inserting one (same FK reason as
+--     the admin/staff lookups above); skips if this environment somehow
+--     has only super_admin profiles.
 do $$
-declare v_user uuid := gen_random_uuid();
+declare v_user uuid;
 begin
-  insert into public.profile (id, full_name, email, role) values (v_user, 'ZZ DBTEST User', 'zz-dbtest-user@example.com', 'user');
+  select id into v_user from public.profile where role <> 'super_admin' and is_active limit 1;
+  if v_user is null then
+    raise notice 'skip - no non-super_admin profile exists in this environment to test the refusal against';
+    return;
+  end if;
   perform set_config('request.jwt.claim.sub', v_user::text, true);
   begin
     perform public.analytics_summary('{}'::jsonb);
-    raise exception 'FAIL - a role=user caller was allowed to read analytics_summary';
+    raise exception 'FAIL - a non-super_admin caller was allowed to read analytics_summary';
   exception when others then
     if sqlerrm like 'Only a super admin%' then
       raise notice 'ok   - a non-admin is refused';
