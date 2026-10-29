@@ -12,7 +12,8 @@ export type SourceRow = { source: string; count: number };
 export type VerticalRow = { id: string; label: string; is_active: boolean; count: number; verified: number };
 export type CategoryRow = { id: string; label: string; is_active: boolean; has_subcategories: boolean; count: number; verified: number };
 export type SubcategoryRow = { id: string; label: string; is_active: boolean; count: number; verified: number };
-export type GeoRow = { state?: string; city?: string; count: number };
+export type GeoRow = { state?: string; count: number };
+export type RegionRow = { region: string; label: string; count: number };
 
 export type AnalyticsSummary = {
   kpi: Kpi;
@@ -21,7 +22,7 @@ export type AnalyticsSummary = {
   by_category: CategoryRow[];
   by_subcategory: Record<string, SubcategoryRow[]>;
   by_state: GeoRow[];
-  by_city: GeoRow[];
+  by_region: RegionRow[];
 };
 
 export type TrendBucket = { bucket: string; count: number };

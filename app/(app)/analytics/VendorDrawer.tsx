@@ -30,7 +30,7 @@ export default function VendorDrawer() {
 
   const close = () => {
     const params = new URLSearchParams(searchParams.toString());
-    for (const k of ['drawer', 'dLabel', 'dBreadcrumb', 'dFrom', 'dTo', 'dVertical', 'dCategory', 'dSubcategory', 'dState', 'dCity', 'dSource', 'dAddedBy', 'dWindow'])
+    for (const k of ['drawer', 'dLabel', 'dBreadcrumb', 'dFrom', 'dTo', 'dVertical', 'dCategory', 'dSubcategory', 'dState', 'dRegion', 'dSource', 'dAddedBy', 'dWindow'])
       params.delete(k);
     const qs = params.toString();
     router.push(qs ? `${pathname}?${qs}` : pathname);

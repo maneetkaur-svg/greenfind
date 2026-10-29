@@ -130,29 +130,41 @@ begin
   raise notice 'ok   - by_vertical tab counts ignore the vertical/category/sub-category filters';
 end $$;
 
--- 4. By-geography: State mode ignores State AND City; City mode ignores
---    only City (so it still respects a chosen State).
+-- 4. Region derivation (sql/54d): Rajasthan -> north, Gujarat -> west, and
+--    a state never matches a region it doesn't belong to. Then the same
+--    ignore-rule shape State/City had: State mode ignores State AND
+--    Region; Region mode ignores only Region (so it still respects a
+--    chosen State).
 do $$
-declare v_state_count int; v_city_count int;
+declare v_total int; v_state_count int; v_region_count int;
 begin
+  select (public.analytics_summary(jsonb_build_object('region', 'north', 'state', 'Rajasthan'))->'kpi'->>'total')::int into v_total;
+  if v_total <> 2 then raise exception 'FAIL - region=north scoped to Rajasthan gave %, expected 2', v_total; end if;
+
+  select (public.analytics_summary(jsonb_build_object('region', 'west', 'state', 'Gujarat'))->'kpi'->>'total')::int into v_total;
+  if v_total <> 1 then raise exception 'FAIL - region=west scoped to Gujarat gave %, expected 1', v_total; end if;
+
+  select (public.analytics_summary(jsonb_build_object('region', 'west', 'state', 'Rajasthan'))->'kpi'->>'total')::int into v_total;
+  if v_total <> 0 then raise exception 'FAIL - region=west scoped to Rajasthan (a north state) gave %, expected 0', v_total; end if;
+
   select coalesce((
     select (row->>'count')::int from jsonb_array_elements(
       public.analytics_summary(jsonb_build_object('state', 'Gujarat'))->'by_state'
     ) row where row->>'state' = 'Rajasthan'
   ), -1) into v_state_count;
   if v_state_count <> 2 then
-    raise exception 'FAIL - by_state ignoring State/City gave Rajasthan=%, expected 2', v_state_count;
+    raise exception 'FAIL - by_state ignoring State/Region gave Rajasthan=%, expected 2', v_state_count;
   end if;
 
   select coalesce((
     select (row->>'count')::int from jsonb_array_elements(
-      public.analytics_summary(jsonb_build_object('state', 'Rajasthan', 'city', 'Jaipur'))->'by_city'
-    ) row where row->>'city' = 'Jaipur'
-  ), -1) into v_city_count;
-  if v_city_count <> 2 then
-    raise exception 'FAIL - by_city within a chosen state gave Jaipur=%, expected 2', v_city_count;
+      public.analytics_summary(jsonb_build_object('state', 'Rajasthan', 'region', 'north'))->'by_region'
+    ) row where row->>'region' = 'north'
+  ), -1) into v_region_count;
+  if v_region_count <> 2 then
+    raise exception 'FAIL - by_region within a chosen state gave north=%, expected 2', v_region_count;
   end if;
-  raise notice 'ok   - by_geography ignore-rules (State mode ignores State+City, City mode ignores City only)';
+  raise notice 'ok   - region derives correctly from state, and the State/Region ignore-rules hold';
 end $$;
 
 -- 5. Window filter: 12m excludes the site created 11 months ago is FALSE

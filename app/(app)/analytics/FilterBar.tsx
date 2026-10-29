@@ -2,8 +2,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { AnalyticsFilters } from '@/lib/analyticsFilters';
-import { buildHref, SOURCE_LABEL, WINDOW_LABEL } from '@/lib/analyticsFilters';
-import type { Taxonomy, GeoRow } from '@/lib/analyticsTypes';
+import { buildHref, SOURCE_LABEL, WINDOW_LABEL, REGION_OPTIONS } from '@/lib/analyticsFilters';
+import type { Taxonomy, GeoRow, RegionRow } from '@/lib/analyticsTypes';
 
 const sel = { fontSize: 13, padding: '7px 10px', minWidth: 120 } as const;
 
@@ -13,8 +13,8 @@ const sel = { fontSize: 13, padding: '7px 10px', minWidth: 120 } as const;
  *  collapses it again. The filters themselves don't change between the two
  *  -- only whether the row wraps or scrolls. */
 export default function FilterBar({
-  filters, taxonomy, byState, byCity,
-}: { filters: AnalyticsFilters; taxonomy: Taxonomy; byState: GeoRow[]; byCity: GeoRow[] }) {
+  filters, taxonomy, byState, byRegion,
+}: { filters: AnalyticsFilters; taxonomy: Taxonomy; byState: GeoRow[]; byRegion: RegionRow[] }) {
   const router = useRouter();
   const [expanded, setExpanded] = useState(false);
   const go = (changes: Partial<Record<keyof AnalyticsFilters, string | null>>) => router.push(buildHref(filters, changes));
@@ -24,12 +24,13 @@ export default function FilterBar({
   const category = categories.find(c => c.id === filters.category);
   const subcategories = category?.subcategories.filter(s => s.is_active) ?? [];
 
-  // State options come from by_state (already computed ignoring state/city,
+  // State options come from by_state (already computed ignoring state/region,
   // so this always lists every state with a vendor under the other active
-  // filters, not just the currently-selected one). City options come from
-  // by_city, which already respects a chosen State.
+  // filters, not just the currently-selected one). Region is a fixed,
+  // data-independent list (REGION_OPTIONS) -- its counts come from
+  // by_region, which already respects a chosen State.
   const states = [...byState].sort((a, b) => (a.state ?? '').localeCompare(b.state ?? ''));
-  const cities = [...byCity].sort((a, b) => (a.city ?? '').localeCompare(b.city ?? ''));
+  const regionCount = (code: string) => byRegion.find(r => r.region === code)?.count ?? 0;
 
   const hasFilters = Object.values(filters).some(Boolean);
 
@@ -68,17 +69,16 @@ export default function FilterBar({
 
       {field('State', (
         <select style={sel} value={filters.state ?? ''}
-                onChange={e => go({ state: e.target.value || null, city: null })}>
+                onChange={e => go({ state: e.target.value || null })}>
           <option value="">All</option>
           {states.map(s => <option key={s.state} value={s.state}>{s.state} ({s.count})</option>)}
         </select>
       ))}
 
-      {field('City', (
-        <select style={sel} value={filters.city ?? ''} disabled={!filters.state}
-                onChange={e => go({ city: e.target.value || null })}>
-          <option value="">{filters.state ? 'All' : 'Pick a state first'}</option>
-          {cities.map(c => <option key={c.city} value={c.city}>{c.city} ({c.count})</option>)}
+      {field('Region', (
+        <select style={sel} value={filters.region ?? ''} onChange={e => go({ region: e.target.value || null })}>
+          <option value="">All</option>
+          {REGION_OPTIONS.map(([code, label]) => <option key={code} value={code}>{label} ({regionCount(code)})</option>)}
         </select>
       ))}
 
@@ -123,7 +123,7 @@ export default function FilterBar({
 
   if (!expanded) {
     return (
-      <div className="card p-3 mb-4 flex items-center gap-3" style={{ overflowX: 'auto' }}>
+      <div className="card p-3 mb-4 flex items-center gap-3 no-scrollbar" style={{ overflowX: 'auto' }}>
         {fields}
         <span className="flex items-center gap-3 ml-auto shrink-0">
           {resetBtn}

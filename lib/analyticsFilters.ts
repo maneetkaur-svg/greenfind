@@ -8,13 +8,13 @@ export type AnalyticsFilters = {
   category?: string;
   subcategory?: string;
   state?: string;
-  city?: string;
+  region?: string;
   source?: string;
   addedBy?: string;
   window?: string;
 };
 
-export const FILTER_KEYS = ['vertical', 'category', 'subcategory', 'state', 'city', 'source', 'addedBy', 'window'] as const;
+export const FILTER_KEYS = ['vertical', 'category', 'subcategory', 'state', 'region', 'source', 'addedBy', 'window'] as const;
 
 export function parseFilters(sp: Record<string, string | undefined>): AnalyticsFilters {
   const out: AnalyticsFilters = {};
@@ -74,7 +74,7 @@ export type DrawerSpec = {
 
 const D_PREFIX: Record<keyof AnalyticsFilters, string> = {
   vertical: 'dVertical', category: 'dCategory', subcategory: 'dSubcategory',
-  state: 'dState', city: 'dCity', source: 'dSource', addedBy: 'dAddedBy', window: 'dWindow',
+  state: 'dState', region: 'dRegion', source: 'dSource', addedBy: 'dAddedBy', window: 'dWindow',
 };
 
 /** A link that opens the vendor drawer scoped to one summary row — built
@@ -120,6 +120,14 @@ export function parseDrawerFromSearch(sp: URLSearchParams): DrawerSpec | null {
 export const WINDOW_LABEL: Record<string, string> = {
   '30d': 'Last 30 days', '90d': 'Last 90 days', '12m': 'Last 12 months',
 };
+
+// Fixed, data-independent -- the Region select always offers all seven,
+// even one with zero vendors right now (sql/54d_region_filter.sql defines
+// exactly these seven; keep the two in sync).
+export const REGION_OPTIONS: [string, string][] = [
+  ['north', 'North'], ['south', 'South'], ['east', 'East'], ['west', 'West'],
+  ['northeast', 'North East'], ['pan_india', 'Pan India'], ['outside_india', 'Outside India'],
+];
 
 export const SOURCE_LABEL: Record<string, string> = {
   import: 'Import', manual: 'Internal', public_form: 'Quick sign-up',

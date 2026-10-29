@@ -97,7 +97,7 @@ export default function TrendChart({ filters, taxonomy }: { filters: AnalyticsFi
             {(['daily', 'weekly', 'monthly'] as Granularity[]).map(gr => (
               <button key={gr} type="button" onClick={() => setGranularity(gr)}
                       className="px-2.5 py-1 text-[12px] font-semibold rounded-md"
-                      style={gr === granularity ? { background: 'var(--p500)', color: '#fff' } : { color: 'var(--faint)' }}>
+                      style={gr === granularity ? { background: 'var(--p50)', color: 'var(--p700)' } : { color: 'var(--faint)' }}>
                 {GRAN_LABEL[gr]}
               </button>
             ))}
