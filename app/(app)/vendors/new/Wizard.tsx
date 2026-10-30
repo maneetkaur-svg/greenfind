@@ -96,6 +96,9 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
             [gstState, site.state]);
 
   const industryCats = useMemo(() => cats.filter(c => c.industry === industry), [cats, industry]);
+  const pickedSubDetails = useMemo(
+    () => industryCats.flatMap(c => c.subs).filter(s => pickedSubs.includes(s.id)),
+    [industryCats, pickedSubs]);
 
   // Before an industry is chosen, show the ones common to every industry —
   // the GST certificate, PAN and cancelled cheque are needed whatever the
@@ -563,6 +566,12 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
                     sub-categories, pick at least one.
                   </p>
                   {categoryPicker}
+                  {!linked && (
+                    <div className="mt-5">
+                      <FieldGrid fields={sec('identity').fields.filter(f => f.key === 'manufactures_in_house')}
+                                 values={company} onChange={(k, v) => setCompany(p => ({ ...p, [k]: v }))} />
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -577,7 +586,7 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
                   <div className="text-[11px] font-bold uppercase tracking-[.07em] mb-3"
                        style={{ color: 'var(--p600)' }}>Company</div>
                   <FieldGrid
-                    fields={sec('identity').fields.filter(f => f.key !== 'pan')}
+                    fields={sec('identity').fields.filter(f => !['pan', 'manufactures_in_house'].includes(f.key))}
                     values={company}
                     onChange={(k, v) => setCompany(p => ({ ...p, [k]: v }))} />
                   <div className="hint mt-3">PAN will be {pan ?? 'taken from the GSTIN'}.</div>
@@ -723,6 +732,31 @@ export default function Wizard({ cats, docRules }: { cats: Cat[]; docRules: DocR
               </p>
               <FieldGrid fields={sec(current.id).fields} values={ops}
                          onChange={(k, v) => setOps(p => ({ ...p, [k]: v }))} />
+              {current.id === 'operations' && pickedSubDetails.length > 0 && (
+                <div className="mt-6 pt-5 border-t" style={{ borderColor: 'var(--line)' }}>
+                  <div className="text-[11px] font-bold uppercase tracking-[.07em] mb-1" style={{ color: 'var(--p600)' }}>
+                    Minimum order quantity, per product
+                  </div>
+                  <p className="text-[13px] mb-3" style={{ color: 'var(--faint)' }}>
+                    One MOQ for each product picked under Service category.
+                  </p>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    {pickedSubDetails.map(s => (
+                      <div key={s.id}>
+                        <label className="lab" htmlFor={`moq_${s.id}`}>{s.label}</label>
+                        <input id={`moq_${s.id}`} type="number"
+                               value={(ops.moq_by_subcategory as Record<string, string> | undefined)?.[s.id] ?? ''}
+                               onChange={e => setOps(p => {
+                                 const next = { ...((p.moq_by_subcategory as Record<string, string>) ?? {}) };
+                                 if (e.target.value === '') delete next[s.id]; else next[s.id] = e.target.value;
+                                 const { moq_by_subcategory: _drop, ...rest } = p;
+                                 return Object.keys(next).length ? { ...rest, moq_by_subcategory: next } : rest;
+                               })} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </>
           )}
 

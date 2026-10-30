@@ -68,6 +68,21 @@ export async function saveSection(
       return { error: 'IFSC must be eleven characters, like HDFC0000432.' };
     if (ifsc) values.ifsc = ifsc.toUpperCase();
   }
+  if (section.id === 'operations') {
+    // Not a plain Field -- one MOQ per product (service sub-category), named
+    // moq__<subcategory_id> by SectionForm. Keyed on whatever is actually on
+    // the form, so removing a sub-category elsewhere just stops that MOQ
+    // being asked for rather than silently keeping a stale number.
+    const moq: Record<string, number> = {};
+    for (const [key, raw] of formData.entries()) {
+      if (!key.startsWith('moq__')) continue;
+      const v = String(raw).trim();
+      if (v === '') continue;
+      const n = Number(v);
+      if (Number.isFinite(n)) moq[key.slice(5)] = n;
+    }
+    values.moq_by_subcategory = Object.keys(moq).length ? moq : null;
+  }
   if (section.id === 'site') {
     const pin = values.pincode as string | null;
     if (pin && !RX.pincode.test(pin))

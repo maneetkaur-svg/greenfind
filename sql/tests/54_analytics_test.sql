@@ -84,14 +84,16 @@ begin
   end if;
 end $$;
 
--- 1. KPI total matches a plain count of the three test sites (scoped by
---    state so pre-existing vendors in the real data don't throw this off).
+-- 1. KPI total counts companies, not sites (sql/54c) -- ZZ-A54-1-A and
+--    ZZ-A54-1-B are two sites under the SAME company, so Rajasthan's KPI
+--    total is 1, not 2, even though two sites match (scoped by state so
+--    pre-existing vendors in the real data don't throw this off).
 do $$
 declare v_total int;
 begin
   select (public.analytics_summary(jsonb_build_object('state', 'Rajasthan'))->'kpi'->>'total')::int into v_total;
-  if v_total <> 2 then raise exception 'FAIL - KPI total for Rajasthan is %, expected 2', v_total; end if;
-  raise notice 'ok   - KPI total respects the state filter';
+  if v_total <> 1 then raise exception 'FAIL - KPI total for Rajasthan is %, expected 1 (one company, two sites)', v_total; end if;
+  raise notice 'ok   - KPI total respects the state filter and counts companies, not sites';
 end $$;
 
 -- 2. By-source ignores its own filter: filtering to source=manual must not
@@ -139,7 +141,7 @@ do $$
 declare v_total int; v_state_count int; v_region_count int;
 begin
   select (public.analytics_summary(jsonb_build_object('region', 'north', 'state', 'Rajasthan'))->'kpi'->>'total')::int into v_total;
-  if v_total <> 2 then raise exception 'FAIL - region=north scoped to Rajasthan gave %, expected 2', v_total; end if;
+  if v_total <> 1 then raise exception 'FAIL - region=north scoped to Rajasthan gave %, expected 1 (one company, two sites)', v_total; end if;
 
   select (public.analytics_summary(jsonb_build_object('region', 'west', 'state', 'Gujarat'))->'kpi'->>'total')::int into v_total;
   if v_total <> 1 then raise exception 'FAIL - region=west scoped to Gujarat gave %, expected 1', v_total; end if;
@@ -213,7 +215,7 @@ begin
     into v_by_staff;
   select (public.analytics_summary(jsonb_build_object('addedBy', 'external', 'state', 'Gujarat'))->'kpi'->>'total')::int
     into v_external;
-  if v_by_staff <> 2 then raise exception 'FAIL - addedBy=staff gave %, expected 2', v_by_staff; end if;
+  if v_by_staff <> 1 then raise exception 'FAIL - addedBy=staff gave %, expected 1 (one company, two sites)', v_by_staff; end if;
   if v_external <> 1 then raise exception 'FAIL - addedBy=external gave %, expected 1', v_external; end if;
   raise notice 'ok   - addedBy filter handles both a real profile id and the "external" sentinel';
 end $$;

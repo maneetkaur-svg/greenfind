@@ -182,6 +182,7 @@ begin
     bank_account_name, bank_account_number, ifsc, bank_branch,
     authorised_signatory, nda_status, nda_signed_date,
     turnover_current, turnover_previous, key_clients, serves_tier1_oem, credit_period_days,
+    manufactures_in_house,
     how_heard_about_fitsol, first_time_with_fitsol, data_consent_given, data_consent_at,
     migrated_from_portal, created_at, created_by
   ) values (
@@ -199,6 +200,7 @@ begin
     nullif(v_company->>'turnover_current','')::numeric, nullif(v_company->>'turnover_previous','')::numeric,
     nullif(trim(coalesce(v_company->>'key_clients','')), ''),
     (v_company->>'serves_tier1_oem')::boolean, nullif(v_company->>'credit_period_days','')::smallint,
+    (v_company->>'manufactures_in_house')::boolean,
     v_how_heard, v_first_time, true, now(),
     false, now(), v_uid
   ) returning id into v_company_id;
@@ -253,21 +255,22 @@ begin
                 from jsonb_each(v_ops));
   if v_has_ops then
     insert into public.site_operations (
-      site_id, installed_capacity, capacity_unit, utilisation_pct, storage_capacity,
-      products_made, minimum_order_qty, lead_time_days, machines, workers, employees,
-      shifts_per_day, hours_per_shift, working_days_week, floor_area, power_backup,
+      site_id, installed_capacity, capacity_unit, utilisation_pct,
+      has_storage_capacity, storage_capacity,
+      lead_time_days, machines, manpower_skilled, manpower_unskilled, total_staff,
+      shifts_per_day, floor_area, power_backup, moq_by_subcategory,
       fleet_owned, fleet_attached, fleet_ev, fleet_cng, charging_infra, telematics_provider,
       drivers_on_roll, depots, lanes_served
     ) values (
       v_site_id,
       nullif(v_ops->>'installed_capacity','')::numeric, nullif(v_ops->>'capacity_unit',''),
-      nullif(v_ops->>'utilisation_pct','')::numeric, nullif(v_ops->>'storage_capacity','')::numeric,
-      nullif(v_ops->>'products_made',''), nullif(v_ops->>'minimum_order_qty','')::numeric,
+      nullif(v_ops->>'utilisation_pct','')::numeric,
+      (v_ops->>'has_storage_capacity')::boolean, nullif(v_ops->>'storage_capacity','')::numeric,
       nullif(v_ops->>'lead_time_days','')::smallint, nullif(v_ops->>'machines','')::smallint,
-      nullif(v_ops->>'workers','')::integer, nullif(v_ops->>'employees','')::integer,
-      nullif(v_ops->>'shifts_per_day','')::smallint, nullif(v_ops->>'hours_per_shift','')::numeric,
-      nullif(v_ops->>'working_days_week','')::smallint, nullif(v_ops->>'floor_area','')::numeric,
-      (v_ops->>'power_backup')::boolean,
+      nullif(v_ops->>'manpower_skilled','')::integer, nullif(v_ops->>'manpower_unskilled','')::integer,
+      nullif(v_ops->>'total_staff','')::integer,
+      nullif(v_ops->>'shifts_per_day','')::smallint, nullif(v_ops->>'floor_area','')::numeric,
+      (v_ops->>'power_backup')::boolean, v_ops->'moq_by_subcategory',
       nullif(v_ops->>'fleet_owned','')::integer, nullif(v_ops->>'fleet_attached','')::integer,
       nullif(v_ops->>'fleet_ev','')::integer, nullif(v_ops->>'fleet_cng','')::integer,
       nullif(v_ops->>'charging_infra',''), nullif(v_ops->>'telematics_provider',''),
