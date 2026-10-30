@@ -77,11 +77,9 @@ h1,h2,h3,h4 { color: var(--head); letter-spacing: -.02em; }
 }
 .nav-loading-veil span.label { font-size: 13.5px; font-weight: 600; color: var(--muted); }
 
-/* The left sidebar pane: square-cornered, fills its column with no gap
-   showing the page background around it, and a touch darker than the
-   plain surface-2 color (which stays as-is everywhere else it's used --
-   chips, dropdowns, etc.) so the sidebar reads as its own panel. */
-.sidebar-pane { background: color-mix(in srgb, var(--surface-2) 90%, black); border-radius: 0; }
+/* The left sidebar pane: light, square-cornered, and fills its column with
+   no gap showing the page background around it. */
+.sidebar-pane { background: var(--surface-2); border-radius: 0; }
 
 /* The left sidebar's nav items, against the light pane. Brightens on hover;
    the active one stays lit. */
