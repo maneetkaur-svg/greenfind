@@ -1,6 +1,11 @@
 -- ============================================================
--- TEST for sql/54a-e — run in the Supabase SQL Editor on STAGING, after
--- all of them have been applied there.
+-- TEST for sql/54a-55 — safe to run against a database that already has
+-- real vendors (this project has never had a separate staging Supabase
+-- project in practice, so this test runs against the same database as the
+-- live site). Every check below compares a BEFORE/AFTER count around the
+-- small set of test rows this file inserts, rather than asserting an
+-- absolute number -- an absolute "Rajasthan has exactly 2 vendors" would
+-- fail the moment any real Rajasthan vendor exists, which it does here.
 --
 -- Every analytics_* function is security definer and starts with
 -- `if not public.is_admin() then raise exception`, which reads
@@ -35,15 +40,12 @@ begin
   set local role authenticated;
 end $$;
 
--- Two companies, three sites: two in Recycling/Rajasthan/import (one last
--- month, one eleven months ago), one in Packaging/Gujarat/manual, created
--- by a real profile (any other than the admin above, if one exists) so the
--- "addedBy" filter has something real to match against.
+-- Baselines, captured BEFORE any test row exists -- one per assertion
+-- below, under the exact same filter it will use afterward, so "did this
+-- change by the right amount" can be checked instead of "is this an exact
+-- number" (which real, pre-existing data would throw off).
 do $$
-declare
-  v_staff  uuid;
-  v_co1    uuid; v_co2 uuid;
-  v_cat    uuid;
+declare v_staff uuid;
 begin
   select id into v_staff from public.profile
   where is_active and id <> current_setting('zz.dbtest_admin')::uuid
@@ -54,6 +56,62 @@ begin
   end if;
   perform set_config('zz.dbtest_staff', v_staff::text, true);
 
+  perform set_config('zz.base_kpi_raj', (
+    public.analytics_summary(jsonb_build_object('state', 'Rajasthan'))->'kpi'->>'total'), true);
+  perform set_config('zz.base_by_source_import', (coalesce((
+    select (row->>'count')::int from jsonb_array_elements(
+      public.analytics_summary(jsonb_build_object('state', 'Rajasthan', 'source', 'manual'))->'by_source'
+    ) row where row->>'source' = 'import'
+  ), 0))::text, true);
+  perform set_config('zz.base_by_vertical_packaging', (coalesce((
+    select (row->>'count')::int from jsonb_array_elements(
+      public.analytics_summary(jsonb_build_object('vertical', 'recycling', 'state', 'Gujarat'))->'by_vertical'
+    ) row where row->>'id' = 'packaging'
+  ), 0))::text, true);
+  perform set_config('zz.base_kpi_north_raj', (
+    public.analytics_summary(jsonb_build_object('region', 'north', 'state', 'Rajasthan'))->'kpi'->>'total'), true);
+  perform set_config('zz.base_kpi_west_guj', (
+    public.analytics_summary(jsonb_build_object('region', 'west', 'state', 'Gujarat'))->'kpi'->>'total'), true);
+  perform set_config('zz.base_kpi_west_raj', (
+    public.analytics_summary(jsonb_build_object('region', 'west', 'state', 'Rajasthan'))->'kpi'->>'total'), true);
+  perform set_config('zz.base_by_state_raj', (coalesce((
+    select (row->>'count')::int from jsonb_array_elements(
+      public.analytics_summary(jsonb_build_object('state', 'Gujarat'))->'by_state'
+    ) row where row->>'state' = 'Rajasthan'
+  ), 0))::text, true);
+  perform set_config('zz.base_by_region_north', (coalesce((
+    select (row->>'count')::int from jsonb_array_elements(
+      public.analytics_summary(jsonb_build_object('state', 'Rajasthan', 'region', 'north'))->'by_region'
+    ) row where row->>'region' = 'north'
+  ), 0))::text, true);
+  perform set_config('zz.base_kpi_raj_30d', (
+    public.analytics_summary(jsonb_build_object('state', 'Rajasthan', 'window', '30d'))->'kpi'->>'total'), true);
+  perform set_config('zz.base_trend_excl', (coalesce((
+    select sum((b->>'count')::int) from jsonb_array_elements(
+      public.analytics_trend(jsonb_build_object('state', 'Rajasthan'), 'monthly', false)->'buckets'
+    ) b
+  ), 0))::text, true);
+  perform set_config('zz.base_trend_incl', (coalesce((
+    select sum((b->>'count')::int) from jsonb_array_elements(
+      public.analytics_trend(jsonb_build_object('state', 'Rajasthan'), 'monthly', true)->'buckets'
+    ) b
+  ), 0))::text, true);
+  perform set_config('zz.base_kpi_addedby_staff', (
+    public.analytics_summary(jsonb_build_object('addedBy', v_staff::text, 'state', 'Rajasthan'))->'kpi'->>'total'), true);
+  perform set_config('zz.base_kpi_addedby_external', (
+    public.analytics_summary(jsonb_build_object('addedBy', 'external', 'state', 'Gujarat'))->'kpi'->>'total'), true);
+end $$;
+
+-- Two companies, three sites: two in Recycling/Rajasthan/import (one last
+-- month, one eleven months ago), one in Packaging/Gujarat/manual, created
+-- by a real profile (any other than the admin above, if one exists) so the
+-- "addedBy" filter has something real to match against.
+do $$
+declare
+  v_staff  uuid := current_setting('zz.dbtest_staff')::uuid;
+  v_co1    uuid; v_co2 uuid;
+  v_cat    uuid;
+begin
   -- company.pan is char(10), checked against ^[A-Z]{5}[0-9]{4}[A-Z]$
   -- (01_schema.sql); vendor_site.pan is GENERATED from substring(gstin, 3,
   -- 10) and must match the company's own pan exactly (the composite FK a
@@ -85,21 +143,21 @@ begin
 end $$;
 
 -- 1. KPI total counts companies, not sites (sql/54c) -- ZZ-A54-1-A and
---    ZZ-A54-1-B are two sites under the SAME company, so Rajasthan's KPI
---    total is 1, not 2, even though two sites match (scoped by state so
---    pre-existing vendors in the real data don't throw this off).
+--    ZZ-A54-1-B are two sites under the SAME company, so adding them moves
+--    Rajasthan's KPI total by 1, not 2, even though two sites were added.
 do $$
-declare v_total int;
+declare v_total int; v_delta int;
 begin
   select (public.analytics_summary(jsonb_build_object('state', 'Rajasthan'))->'kpi'->>'total')::int into v_total;
-  if v_total <> 1 then raise exception 'FAIL - KPI total for Rajasthan is %, expected 1 (one company, two sites)', v_total; end if;
+  v_delta := v_total - current_setting('zz.base_kpi_raj')::int;
+  if v_delta <> 1 then raise exception 'FAIL - KPI total for Rajasthan moved by %, expected +1 (one company, two sites)', v_delta; end if;
   raise notice 'ok   - KPI total respects the state filter and counts companies, not sites';
 end $$;
 
 -- 2. By-source ignores its own filter: filtering to source=manual must not
 --    zero out the import row's count in the by_source breakdown.
 do $$
-declare v_import_count int;
+declare v_import_count int; v_delta int;
 begin
   select coalesce((
     select (row->>'count')::int
@@ -107,17 +165,18 @@ begin
       jsonb_build_object('state', 'Rajasthan', 'source', 'manual')
     )->'by_source') row
     where row->>'source' = 'import'
-  ), -1) into v_import_count;
-  if v_import_count <> 2 then
-    raise exception 'FAIL - by_source ignoring its own filter gave import=%, expected 2', v_import_count;
+  ), 0) into v_import_count;
+  v_delta := v_import_count - current_setting('zz.base_by_source_import')::int;
+  if v_delta <> 2 then
+    raise exception 'FAIL - by_source ignoring its own filter moved import by %, expected +2', v_delta;
   end if;
   raise notice 'ok   - by_source ignores the Source filter on itself';
 end $$;
 
 -- 3. Vertical tabs ignore the vertical filter: Packaging's tab count must
---    still show 1 even while the page is filtered to vertical=recycling.
+--    still move by 1 even while the page is filtered to vertical=recycling.
 do $$
-declare v_packaging int;
+declare v_packaging int; v_delta int;
 begin
   select coalesce((
     select (row->>'count')::int
@@ -125,9 +184,10 @@ begin
       jsonb_build_object('vertical', 'recycling', 'state', 'Gujarat')
     )->'by_vertical') row
     where row->>'id' = 'packaging'
-  ), -1) into v_packaging;
-  if v_packaging <> 1 then
-    raise exception 'FAIL - by_vertical ignoring the vertical filter gave packaging=%, expected 1', v_packaging;
+  ), 0) into v_packaging;
+  v_delta := v_packaging - current_setting('zz.base_by_vertical_packaging')::int;
+  if v_delta <> 1 then
+    raise exception 'FAIL - by_vertical ignoring the vertical filter moved packaging by %, expected +1', v_delta;
   end if;
   raise notice 'ok   - by_vertical tab counts ignore the vertical/category/sub-category filters';
 end $$;
@@ -141,30 +201,41 @@ do $$
 declare v_total int; v_state_count int; v_region_count int;
 begin
   select (public.analytics_summary(jsonb_build_object('region', 'north', 'state', 'Rajasthan'))->'kpi'->>'total')::int into v_total;
-  if v_total <> 1 then raise exception 'FAIL - region=north scoped to Rajasthan gave %, expected 1 (one company, two sites)', v_total; end if;
+  if v_total - current_setting('zz.base_kpi_north_raj')::int <> 1 then
+    raise exception 'FAIL - region=north scoped to Rajasthan moved by %, expected +1 (one company, two sites)',
+      v_total - current_setting('zz.base_kpi_north_raj')::int;
+  end if;
 
   select (public.analytics_summary(jsonb_build_object('region', 'west', 'state', 'Gujarat'))->'kpi'->>'total')::int into v_total;
-  if v_total <> 1 then raise exception 'FAIL - region=west scoped to Gujarat gave %, expected 1', v_total; end if;
+  if v_total - current_setting('zz.base_kpi_west_guj')::int <> 1 then
+    raise exception 'FAIL - region=west scoped to Gujarat moved by %, expected +1',
+      v_total - current_setting('zz.base_kpi_west_guj')::int;
+  end if;
 
   select (public.analytics_summary(jsonb_build_object('region', 'west', 'state', 'Rajasthan'))->'kpi'->>'total')::int into v_total;
-  if v_total <> 0 then raise exception 'FAIL - region=west scoped to Rajasthan (a north state) gave %, expected 0', v_total; end if;
+  if v_total - current_setting('zz.base_kpi_west_raj')::int <> 0 then
+    raise exception 'FAIL - region=west scoped to Rajasthan (a north state) moved by %, expected 0',
+      v_total - current_setting('zz.base_kpi_west_raj')::int;
+  end if;
 
   select coalesce((
     select (row->>'count')::int from jsonb_array_elements(
       public.analytics_summary(jsonb_build_object('state', 'Gujarat'))->'by_state'
     ) row where row->>'state' = 'Rajasthan'
-  ), -1) into v_state_count;
-  if v_state_count <> 2 then
-    raise exception 'FAIL - by_state ignoring State/Region gave Rajasthan=%, expected 2', v_state_count;
+  ), 0) into v_state_count;
+  if v_state_count - current_setting('zz.base_by_state_raj')::int <> 2 then
+    raise exception 'FAIL - by_state ignoring State/Region moved Rajasthan by %, expected +2',
+      v_state_count - current_setting('zz.base_by_state_raj')::int;
   end if;
 
   select coalesce((
     select (row->>'count')::int from jsonb_array_elements(
       public.analytics_summary(jsonb_build_object('state', 'Rajasthan', 'region', 'north'))->'by_region'
     ) row where row->>'region' = 'north'
-  ), -1) into v_region_count;
-  if v_region_count <> 2 then
-    raise exception 'FAIL - by_region within a chosen state gave north=%, expected 2', v_region_count;
+  ), 0) into v_region_count;
+  if v_region_count - current_setting('zz.base_by_region_north')::int <> 2 then
+    raise exception 'FAIL - by_region within a chosen state moved north by %, expected +2',
+      v_region_count - current_setting('zz.base_by_region_north')::int;
   end if;
   raise notice 'ok   - region derives correctly from state, and the State/Region ignore-rules hold';
 end $$;
@@ -173,16 +244,18 @@ end $$;
 --    (11 months is within a 12-month window) but a tight 30d window must
 --    exclude it while keeping the 20-day-old one.
 do $$
-declare v_30d int;
+declare v_30d int; v_delta int;
 begin
   select (public.analytics_summary(jsonb_build_object('state', 'Rajasthan', 'window', '30d'))->'kpi'->>'total')::int
     into v_30d;
-  if v_30d <> 1 then raise exception 'FAIL - 30-day window gave %, expected 1 (only the 20-day-old site)', v_30d; end if;
+  v_delta := v_30d - current_setting('zz.base_kpi_raj_30d')::int;
+  if v_delta <> 1 then raise exception 'FAIL - 30-day window moved by %, expected +1 (only the 20-day-old site)', v_delta; end if;
   raise notice 'ok   - the Added window filter narrows correctly';
 end $$;
 
 -- 6. Trend: default (include_imports=false) must drop the two import rows
---    from Rajasthan; forcing include_imports=true must count them.
+--    from Rajasthan (no movement); forcing include_imports=true must count
+--    both.
 do $$
 declare v_excl_total int; v_incl_total int;
 begin
@@ -194,11 +267,13 @@ begin
   from jsonb_array_elements(
     public.analytics_trend(jsonb_build_object('state', 'Rajasthan'), 'monthly', true)->'buckets'
   ) b;
-  if v_excl_total <> 0 then
-    raise exception 'FAIL - trend with include_imports=false counted % import rows, expected 0', v_excl_total;
+  if v_excl_total - current_setting('zz.base_trend_excl')::int <> 0 then
+    raise exception 'FAIL - trend with include_imports=false moved by %, expected 0 (both test sites are imports)',
+      v_excl_total - current_setting('zz.base_trend_excl')::int;
   end if;
-  if v_incl_total <> 2 then
-    raise exception 'FAIL - trend with include_imports=true counted %, expected 2', v_incl_total;
+  if v_incl_total - current_setting('zz.base_trend_incl')::int <> 2 then
+    raise exception 'FAIL - trend with include_imports=true moved by %, expected +2',
+      v_incl_total - current_setting('zz.base_trend_incl')::int;
   end if;
   raise notice 'ok   - bulk-import exclusion toggle works both ways';
 end $$;
@@ -215,8 +290,14 @@ begin
     into v_by_staff;
   select (public.analytics_summary(jsonb_build_object('addedBy', 'external', 'state', 'Gujarat'))->'kpi'->>'total')::int
     into v_external;
-  if v_by_staff <> 1 then raise exception 'FAIL - addedBy=staff gave %, expected 1 (one company, two sites)', v_by_staff; end if;
-  if v_external <> 1 then raise exception 'FAIL - addedBy=external gave %, expected 1', v_external; end if;
+  if v_by_staff - current_setting('zz.base_kpi_addedby_staff')::int <> 1 then
+    raise exception 'FAIL - addedBy=staff moved by %, expected +1 (one company, two sites)',
+      v_by_staff - current_setting('zz.base_kpi_addedby_staff')::int;
+  end if;
+  if v_external - current_setting('zz.base_kpi_addedby_external')::int <> 1 then
+    raise exception 'FAIL - addedBy=external moved by %, expected +1',
+      v_external - current_setting('zz.base_kpi_addedby_external')::int;
+  end if;
   raise notice 'ok   - addedBy filter handles both a real profile id and the "external" sentinel';
 end $$;
 
