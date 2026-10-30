@@ -88,6 +88,9 @@ export default function FullOnboardForm({ cats, docRules }: { cats: Cat[]; docRu
   const sameAsRegistered = site.is_registered_address !== false;
   const plantCount = Math.min(50, Math.max(0, Math.floor(Number(site.plant_count) || 0)));
   const industryCats = useMemo(() => cats.filter(c => c.industry === industry), [cats, industry]);
+  const pickedSubDetails = useMemo(
+    () => industryCats.flatMap(c => c.subs).filter(s => pickedSubs.includes(s.id)),
+    [industryCats, pickedSubs]);
   const showCtoEpr = industry === 'recycling' || industry === 'scrap_trading';
   const docs = useMemo(() => docRules.filter(d => d.industry === industry), [docRules, industry]);
 
@@ -554,7 +557,7 @@ export default function FullOnboardForm({ cats, docRules }: { cats: Cat[]; docRu
                 </div>
               </div>
 
-              <FieldGrid fields={sec('identity').fields.filter(f => !['pan', 'entity'].includes(f.key))}
+              <FieldGrid fields={sec('identity').fields.filter(f => !['pan', 'entity', 'manufactures_in_house'].includes(f.key))}
                          values={company} onChange={(k, v) => setCompany(p => ({ ...p, [k]: v }))} />
 
               <div className="mt-5">
@@ -573,6 +576,10 @@ export default function FullOnboardForm({ cats, docRules }: { cats: Cat[]; docRu
                     sub-categories, pick at least one.
                   </p>
                   {categoryPicker}
+                  <div className="mt-5">
+                    <FieldGrid fields={sec('identity').fields.filter(f => f.key === 'manufactures_in_house')}
+                               values={company} onChange={(k, v) => setCompany(p => ({ ...p, [k]: v }))} />
+                  </div>
                 </div>
               )}
             </>
@@ -694,6 +701,31 @@ export default function FullOnboardForm({ cats, docRules }: { cats: Cat[]; docRu
               </p>
               <FieldGrid fields={sec(industry === 'transportation' ? 'fleet' : 'operations').fields}
                          values={ops} onChange={(k, v) => setOps(p => ({ ...p, [k]: v }))} />
+              {industry !== 'transportation' && pickedSubDetails.length > 0 && (
+                <div className="mt-6 pt-5 border-t" style={{ borderColor: 'var(--line)' }}>
+                  <div className="text-[11px] font-bold uppercase tracking-[.07em] mb-1" style={{ color: 'var(--p600)' }}>
+                    Minimum order quantity, per product
+                  </div>
+                  <p className="text-[13px] mb-3" style={{ color: 'var(--faint)' }}>
+                    One MOQ for each product picked under Service category.
+                  </p>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    {pickedSubDetails.map(s => (
+                      <div key={s.id}>
+                        <label className="lab" htmlFor={`moq_${s.id}`}>{s.label}</label>
+                        <input id={`moq_${s.id}`} type="number"
+                               value={(ops.moq_by_subcategory as Record<string, string> | undefined)?.[s.id] ?? ''}
+                               onChange={e => setOps(p => {
+                                 const next = { ...((p.moq_by_subcategory as Record<string, string>) ?? {}) };
+                                 if (e.target.value === '') delete next[s.id]; else next[s.id] = e.target.value;
+                                 const { moq_by_subcategory: _drop, ...rest } = p;
+                                 return Object.keys(next).length ? { ...rest, moq_by_subcategory: next } : rest;
+                               })} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </>
           )}
 

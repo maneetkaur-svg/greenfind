@@ -16,7 +16,7 @@ test.describe('vendor list dashboard', () => {
   test('shows the total vendor count and one box per industry that has vendors', async ({ page }) => {
     await page.goto('/vendors');
     await expect(page.getByTestId('dash-active')).toHaveText(/^\d+$/);
-    await expect(page.getByText('TOTAL VENDORS')).toBeVisible();
+    await expect(page.getByText('Total Unique Vendors')).toBeVisible();
   });
 
   test('an industry box filters the list to that industry', async ({ page }) => {

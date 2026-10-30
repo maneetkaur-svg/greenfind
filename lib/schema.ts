@@ -40,6 +40,8 @@ import { ENTITY_TYPES, MSME_CATEGORIES, INDUSTRIES, STATES } from './constants';
 const NDA_STATUS: [string, string][] = [['yes', 'Yes'], ['no', 'No'], ['inprocess', 'In process']];
 const CAP_UNITS: [string, string][] = [
   ['mt_day', 'MT per day'], ['mt_month', 'MT per month'], ['tpa', 'MT per year (TPA)'],
+  ['each', 'Each'], ['kgs', 'Kgs'], ['nos', 'No.s'], ['pcs', 'Pcs'],
+  ['pair', 'Pair'], ['set', 'Set'], ['gsm', 'GSM'], ['length', 'Length'],
 ];
 
 export const SECTIONS: Section[] = [
@@ -73,6 +75,8 @@ export const SECTIONS: Section[] = [
       { key: 'proprietor_aadhaar_last4', label: "Proprietor's Aadhaar (last four digits)", type: 'text', max: 4, half: true,
         hint: 'Proprietorship / One Person Company only.' },
       { key: 'proprietor_same_as_poc', label: 'Proprietor is the same person as the point of contact', type: 'bool' },
+      { key: 'manufactures_in_house', label: 'Are the products/goods manufactured in-house, or outsourced?',
+        type: 'bool', hint: 'Yes = in-house. No = outsourced.' },
     ],
   },
   {
@@ -169,17 +173,16 @@ export const SECTIONS: Section[] = [
       { key: 'installed_capacity', label: 'Installed capacity', type: 'number', half: true },
       { key: 'capacity_unit', label: 'Capacity unit', type: 'select', options: CAP_UNITS, half: true },
       { key: 'utilisation_pct', label: 'Current utilisation %', type: 'number', half: true },
-      { key: 'storage_capacity', label: 'Storage capacity', type: 'number', half: true },
-      { key: 'products_made', label: 'Products made', type: 'longtext' },
-      { key: 'minimum_order_qty', label: 'Minimum order quantity', type: 'number', half: true },
+      { key: 'has_storage_capacity', label: 'Storage capacity available?', type: 'bool', half: true },
+      { key: 'storage_capacity', label: 'Storage capacity (sq feet)', type: 'number', half: true,
+        showIf: v => v.has_storage_capacity === true },
       { key: 'lead_time_days', label: 'Lead time (days)', type: 'number', half: true },
-      { key: 'machines', label: 'Machines', type: 'number', half: true },
-      { key: 'workers', label: 'Workers', type: 'number', half: true },
-      { key: 'employees', label: 'Employees', type: 'number', half: true },
+      { key: 'machines', label: 'Total number of machines', type: 'number', half: true },
+      { key: 'manpower_skilled', label: 'Total manpower — skilled', type: 'number', half: true },
+      { key: 'manpower_unskilled', label: 'Total manpower — unskilled', type: 'number', half: true },
+      { key: 'total_staff', label: 'Total staff', type: 'number', half: true },
       { key: 'shifts_per_day', label: 'Shifts per day', type: 'number', half: true },
-      { key: 'hours_per_shift', label: 'Hours per shift', type: 'number', half: true },
-      { key: 'working_days_week', label: 'Working days per week', type: 'number', half: true },
-      { key: 'floor_area', label: 'Floor area', type: 'number', half: true },
+      { key: 'floor_area', label: 'Floor area (sq feet)', type: 'number', half: true },
       { key: 'power_backup', label: 'Power backup', type: 'bool' },
     ],
   },

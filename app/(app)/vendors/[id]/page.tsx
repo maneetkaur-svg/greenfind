@@ -140,6 +140,12 @@ async function VendorRecord({
     supabase.from('site_service_subcategory').select('subcategory_id').eq('site_id', id),
   ]);
 
+  // Picked sub-categories, with labels -- drives the per-product MOQ block
+  // on the Operational Capacity tab (SectionForm has no notion of
+  // categories, so this is handed in rather than looked up there).
+  const selectedSubIds = new Set((Array.isArray(selSubs) ? selSubs : []).map(r => r.subcategory_id));
+  const moqSubcats = cats.flatMap(c => c.subs).filter(s => selectedSubIds.has(s.id));
+
   if (!company) {
     return (
       <div className="note r">
@@ -316,7 +322,8 @@ async function VendorRecord({
           <SectionForm key={section.id} sectionId={section.id} values={source(section.table)}
                        siteId={id} companyId={site.company_id} readOnly={readOnly}
                        isSuperAdmin={me.role === 'super_admin' || me.can_edit_vendor_industry}
-                       gstin={site.gstin as string | null} aadhaarLast4={site.aadhaar_last4 as string | null} />
+                       gstin={site.gstin as string | null} aadhaarLast4={site.aadhaar_last4 as string | null}
+                       moqSubcats={section.id === 'operations' ? moqSubcats : undefined} />
         )}
         {active === 'contacts' && (
           <ContactsForm contacts={Array.isArray(contacts) ? contacts : []}

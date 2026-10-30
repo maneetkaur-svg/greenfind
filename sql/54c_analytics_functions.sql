@@ -140,6 +140,12 @@ grant execute on function public.analytics_taxonomy() to authenticated;
 -- (tab counts), by-category/sub-category for whichever vertical is active,
 -- and by-state/by-region -- each computed with its own ignore-list per the
 -- rules in the comment above analytics_filtered_sites.
+--
+-- kpi counts companies (one company, one or more sites, counts once -- see
+-- company_tier below). Every other breakdown here (by_source, by_vertical,
+-- by_state/region, ...) stays per site, since a site is what has a source,
+-- an industry and a location -- so kpi.total will not equal the sum of, say,
+-- by_source's counts, and that is expected.
 create or replace function public.analytics_summary(p jsonb)
 returns jsonb
 language plpgsql
@@ -178,6 +184,20 @@ begin
   active_vertical as (
     select (p->>'vertical')::industry_type as code
   ),
+  -- The KPI band counts companies, not sites (a company with two sites --
+  -- e.g. two plants under one PAN -- is one vendor, not two). A company's
+  -- tier is the most-complete tier among its own sites: Verified if any site
+  -- is, else Unverified if any site is, else Onboarded. created_at is the
+  -- company's earliest site, so "added this month" means first appeared.
+  company_tier as (
+    select
+      company_id,
+      min(created_at) as first_created_at,
+      bool_or(core_complete and banking_complete) as any_verified,
+      bool_or(core_complete and not banking_complete) as any_unverified
+    from all_sites
+    group by company_id
+  ),
   vertical_counts as (
     select
       v.code, v.label, v.sort_order, v.is_active,
@@ -215,13 +235,13 @@ begin
       select jsonb_build_object(
         'total', count(*),
         'added_this_month', count(*) filter (
-          where timezone('Asia/Kolkata', created_at) >= date_trunc('month', timezone('Asia/Kolkata', now()))
+          where timezone('Asia/Kolkata', first_created_at) >= date_trunc('month', timezone('Asia/Kolkata', now()))
         ),
-        'onboarded', count(*) filter (where not core_complete),
-        'verified', count(*) filter (where core_complete and banking_complete),
-        'unverified', count(*) filter (where core_complete and not banking_complete)
+        'verified', count(*) filter (where any_verified),
+        'unverified', count(*) filter (where not any_verified and any_unverified),
+        'onboarded', count(*) filter (where not any_verified and not any_unverified)
       )
-      from all_sites
+      from company_tier
     ),
     'by_source', (
       select coalesce(jsonb_agg(jsonb_build_object('source', source, 'count', cnt) order by cnt desc), '[]'::jsonb)

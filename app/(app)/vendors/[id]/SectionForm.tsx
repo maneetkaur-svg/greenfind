@@ -10,7 +10,7 @@ import PlantBlocks, { blankPlant, type Plant } from '../PlantBlocks';
  *  client one — React throws when it tries to serialise it. Looking it up
  *  here keeps only plain strings crossing the boundary. */
 export default function SectionForm({
-  sectionId, values, siteId, companyId, readOnly, isSuperAdmin, gstin, aadhaarLast4,
+  sectionId, values, siteId, companyId, readOnly, isSuperAdmin, gstin, aadhaarLast4, moqSubcats,
 }: {
   sectionId: string;
   values: Record<string, unknown>;
@@ -20,6 +20,11 @@ export default function SectionForm({
   isSuperAdmin: boolean;
   gstin?: string | null;
   aadhaarLast4?: string | null;
+  /** Operational Capacity only -- the products (service sub-categories)
+   *  this site has picked, so one MOQ input can be shown per product. Not a
+   *  plain Field: which ones exist depends on the Service categories tab,
+   *  not on anything in lib/schema.ts. */
+  moqSubcats?: { id: string; label: string }[];
 }) {
   const section = SECTIONS.find(s => s.id === sectionId);
   const [state, action] = useActionState<SaveState, FormData>(saveSection, {});
@@ -155,6 +160,26 @@ export default function SectionForm({
           );
         })}
       </div>
+
+      {sectionId === 'operations' && !!moqSubcats?.length && (
+        <div className="mt-6 pt-5 border-t" style={{ borderColor: 'var(--line)' }}>
+          <div className="text-[11px] font-bold uppercase tracking-[.07em] mb-1" style={{ color: 'var(--p600)' }}>
+            Minimum order quantity, per product
+          </div>
+          <p className="text-[13px] mb-3" style={{ color: 'var(--faint)' }}>
+            One MOQ for each product on the Service categories tab.
+          </p>
+          <div className="grid md:grid-cols-2 gap-4">
+            {moqSubcats.map(s => (
+              <div key={s.id}>
+                <label className="lab" htmlFor={`moq__${s.id}`}>{s.label}</label>
+                <input id={`moq__${s.id}`} name={`moq__${s.id}`} type="number" disabled={readOnly}
+                       defaultValue={String((values.moq_by_subcategory as Record<string, number> | null)?.[s.id] ?? '')} />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {isSiteSection && !sameAsRegistered && (
         <div className="mt-6 pt-5 border-t" style={{ borderColor: 'var(--line)' }}>
