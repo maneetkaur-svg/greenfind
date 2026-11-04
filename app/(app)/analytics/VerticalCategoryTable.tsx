@@ -106,6 +106,23 @@ export default function VerticalCategoryTable({
           {activeRow && activeRow.count === 0 && (
             <p className="text-[13px] mb-3" style={{ color: 'var(--faint)' }}>No {activeVertical.label} vendors yet.</p>
           )}
+          {/* Per-category "View vendors" links below only reach a vendor with
+             at least one service category picked — common for a vendor
+             imported or migrated without one (old portal, spreadsheet
+             import). This link covers the whole vertical regardless, so
+             those vendors stay reachable instead of silently vanishing
+             between a non-zero vertical/state count and an empty drawer. */}
+          {vertTotal > 0 && (
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <p className="text-[12px]" style={{ color: 'var(--faint)' }}>
+                Categories below only count vendors with at least one service category picked.
+              </p>
+              <Link href={viewHref(activeVertical.label, 'All vendors', { category: null, subcategory: null })}
+                    className="text-[12.5px] font-semibold shrink-0" style={{ color: 'var(--p600)' }}>
+                View all {nf.format(vertTotal)} vendors
+              </Link>
+            </div>
+          )}
           <table className="w-full text-[13px]">
             <thead><tr style={{ color: 'var(--faint)' }}>
               <th className={th}>Service category</th><th className={thR}>Vendors</th>
