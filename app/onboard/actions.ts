@@ -6,10 +6,14 @@ export type SignupPayload = {
   pan_number: string;
   industry: string;
   legal_name: string;
-  site: { address_line1: string; city: string; state: string; pincode: string; location: string };
+  // Quick Sign-up no longer collects address at all -- kept optional rather
+  // than removed from the type, since public_vendor_signup (sql/56) still
+  // accepts one if a future caller ever sends it.
+  site: { address_line1?: string; city?: string; state?: string; pincode?: string; location?: string };
   contacts: { name: string; designation: string; mobile: string; email: string }[];
-  category_ids: string[];
-  subcategory_ids: string[];
+  // Likewise: Quick Sign-up no longer asks for a service category.
+  category_ids?: string[];
+  subcategory_ids?: string[];
   geography: string[];
   how_heard: string;
   first_time_with_fitsol: boolean;
