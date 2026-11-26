@@ -11,6 +11,7 @@ import VerticalDonut from './VerticalDonut';
 import VerticalCategoryTable from './VerticalCategoryTable';
 import ByGeography from './ByGeography';
 import VendorDrawer from './VendorDrawer';
+import DownloadReport from './DownloadReport';
 
 /** Rebuilt per the Oct 2026 design brief: cascading vertical/category/
  *  sub-category filters driven entirely by the DB (sql/54a-c), a teal KPI
@@ -61,7 +62,10 @@ export default async function AnalyticsPage({
             Showing {total === 1 ? '1 vendor' : `all ${total} vendors`}{Object.values(filters).some(Boolean) ? ' matching your filters' : ''}. Data as of {asOf}.
           </p>
         </div>
-        <a href={`/api/analytics/vendors?${exportParams.toString()}`} className="btn btn-o">Export CSV</a>
+        <div className="flex items-center gap-2 flex-wrap">
+          <a href={`/api/analytics/vendors?${exportParams.toString()}`} className="btn btn-o">Export CSV</a>
+          <DownloadReport summary={summary} filters={filters} taxonomy={taxonomy} asOf={asOf} />
+        </div>
       </div>
 
       <FilterBar filters={filters} taxonomy={taxonomy} byState={summary.by_state} byRegion={summary.by_region ?? []} />
