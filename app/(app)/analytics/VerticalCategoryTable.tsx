@@ -44,30 +44,6 @@ export default function VerticalCategoryTable({
 
   return (
     <div className="card p-4">
-      <div className="flex items-center gap-1 mb-4 flex-wrap" style={{ borderBottom: '1px solid var(--line)' }}>
-        <Link href={buildHref(filters, { vertical: null, category: null, subcategory: null })}
-              className="px-3 py-2 text-[13px] font-semibold"
-              style={!activeId
-                ? { color: 'var(--p600)', borderBottom: '2px solid var(--p500)' }
-                : { color: 'var(--muted)' }}>
-          All
-        </Link>
-        {taxonomy.verticals.map(v => {
-          const row = byVertical.find(r => r.id === v.id);
-          const n = row?.count ?? 0;
-          const on = activeId === v.id;
-          return (
-            <Link key={v.id} href={buildHref(filters, { vertical: v.id, category: null, subcategory: null })}
-                  className="px-3 py-2 text-[13px] font-semibold"
-                  style={on
-                    ? { color: 'var(--p600)', borderBottom: '2px solid var(--p500)' }
-                    : { color: n === 0 ? 'var(--line-2)' : 'var(--muted)' }}>
-              {v.label} <span style={{ fontWeight: 400 }}>({nf.format(n)})</span>
-            </Link>
-          );
-        })}
-      </div>
-
       {!activeVertical ? (
         <table className="w-full text-[13px]">
           <thead><tr style={{ color: 'var(--faint)' }}>
@@ -192,6 +168,31 @@ export default function VerticalCategoryTable({
           )}
         </>
       )}
+
+      {/* Vertical tabs sit at the foot of the card, under the table. */}
+      <div className="flex items-center gap-1 mt-4 flex-wrap" style={{ borderTop: '1px solid var(--line)' }}>
+        <Link href={buildHref(filters, { vertical: null, category: null, subcategory: null })}
+              className="px-3 py-2 text-[13px] font-semibold"
+              style={!activeId
+                ? { color: 'var(--p600)', borderTop: '2px solid var(--p500)' }
+                : { color: 'var(--muted)' }}>
+          All
+        </Link>
+        {taxonomy.verticals.map(v => {
+          const row = byVertical.find(r => r.id === v.id);
+          const n = row?.count ?? 0;
+          const on = activeId === v.id;
+          return (
+            <Link key={v.id} href={buildHref(filters, { vertical: v.id, category: null, subcategory: null })}
+                  className="px-3 py-2 text-[13px] font-semibold"
+                  style={on
+                    ? { color: 'var(--p600)', borderTop: '2px solid var(--p500)' }
+                    : { color: n === 0 ? 'var(--line-2)' : 'var(--muted)' }}>
+              {v.label} <span style={{ fontWeight: 400 }}>({nf.format(n)})</span>
+            </Link>
+          );
+        })}
+      </div>
     </div>
   );
 }
