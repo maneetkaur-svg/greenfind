@@ -67,18 +67,20 @@ export default async function AnalyticsPage({
       <FilterBar filters={filters} taxonomy={taxonomy} byState={summary.by_state} byRegion={summary.by_region ?? []} />
       <KpiBand kpi={summary.kpi} monthLabel={monthLabel} />
 
+      {/* Category-wise vendor list and the geography split sit right under the KPI band. */}
+      <div className="grid lg:grid-cols-[1fr_340px] gap-3 items-start mb-3">
+        <VerticalCategoryTable
+          filters={filters} taxonomy={taxonomy} total={total}
+          byVertical={summary.by_vertical} byCategory={summary.by_category} bySubcategory={summary.by_subcategory}
+        />
+        <ByGeography filters={filters} byState={summary.by_state} byRegion={summary.by_region ?? []} />
+      </div>
+
       <div className="grid lg:grid-cols-[1fr_340px] gap-3 items-start">
-        <div className="flex flex-col gap-3">
-          <TrendChart filters={filters} taxonomy={taxonomy} />
-          <VerticalCategoryTable
-            filters={filters} taxonomy={taxonomy} total={total}
-            byVertical={summary.by_vertical} byCategory={summary.by_category} bySubcategory={summary.by_subcategory}
-          />
-        </div>
+        <TrendChart filters={filters} taxonomy={taxonomy} />
         <div className="flex flex-col gap-3">
           <VerticalDonut filters={filters} byVertical={summary.by_vertical} total={total} />
           <BySourceTable rows={summary.by_source} total={total} filters={filters} />
-          <ByGeography filters={filters} byState={summary.by_state} byRegion={summary.by_region ?? []} />
         </div>
       </div>
 
